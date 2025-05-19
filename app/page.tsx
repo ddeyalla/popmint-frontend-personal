@@ -565,7 +565,7 @@ export default function Home() {
           </div>
 
           {/* Suggestion Pills */}
-          <div className="flex flex-wrap gap-3 mt-8 justify-center">
+          <div className="flex flex-wrap gap-3 mt-4 justify-center">
             {["Facebook ad", "Instagram ad", "Product ad", "Discount ad"].map((tag) => (
               <button
                 key={tag}
