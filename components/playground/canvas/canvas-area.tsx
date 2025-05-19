@@ -62,12 +62,22 @@ export function CanvasArea() {
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
+        // Make sure to use the full container width and height
         const width = containerRef.current.offsetWidth || 800;
         const height = containerRef.current.offsetHeight || 600;
+        
+        // Update stage size to fill the container
         setStageSize({
           width,
           height,
         })
+        
+        // Force redraw if stage exists
+        if (stageRef.current) {
+          stageRef.current.width(width);
+          stageRef.current.height(height);
+          stageRef.current.batchDraw();
+        }
       }
     }
 
@@ -563,6 +573,15 @@ export function CanvasArea() {
     // Add a small delay to ensure the layout has settled
     const resizeTimer = setTimeout(() => {
       window.dispatchEvent(new Event('resize'));
+      
+      // Force another update after the transition is complete
+      if (containerRef.current && stageRef.current) {
+        const width = containerRef.current.offsetWidth;
+        const height = containerRef.current.offsetHeight;
+        stageRef.current.width(width);
+        stageRef.current.height(height);
+        stageRef.current.batchDraw();
+      }
     }, 350); // Match the transition duration
     
     return () => clearTimeout(resizeTimer);
@@ -582,7 +601,7 @@ export function CanvasArea() {
         key={isSidebarCollapsed ? 'collapsed' : 'expanded'}
         className={cn(
           "w-full h-full overflow-hidden",
-          isSidebarCollapsed ? "w-screen h-screen" : "max-w-[1131px] mx-auto flex items-center justify-center"
+          isSidebarCollapsed ? "w-screen h-screen" : "w-full h-full flex items-center justify-center"
         )}
         style={{ overflow: "hidden" }}
         ref={containerRef}

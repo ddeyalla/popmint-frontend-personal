@@ -22,7 +22,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       )}
 
       {isUser ? (
-        <div className="flex items-end justify-end gap-2 px-4 py-2 w-full bg-neutral-100 rounded-[10px]">
+        <div className="flex items-start gap-2 px-4 py-2 bg-neutral-100 rounded-[10px] max-w-fit">
           <div className="font-medium text-neutral-800 text-sm">{message.content}</div>
         </div>
       ) : (

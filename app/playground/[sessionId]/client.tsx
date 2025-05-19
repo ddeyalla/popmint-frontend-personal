@@ -1,65 +1,52 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { ChatPanel } from "@/components/playground/chat-panel/chat-panel";
-import { CanvasArea } from "@/components/playground/canvas/canvas-area";
-import { useChatStore } from "@/store/chatStore";
+import { useEffect } from "react"
+import { CanvasArea } from "@/components/playground/canvas/canvas-area"
+import { ChatPanel } from "@/components/playground/chat-panel/chat-panel"
+import { CollapsedOverlay } from "@/components/playground/collapsed-overlay"
+import { useCanvasStore } from "@/store/canvasStore"
+import { cn } from "@/lib/utils"
 
-interface ClientSidePlaygroundProps {
-  sessionId: string;
-}
+export default function PlaygroundPage() {
+  const { isSidebarCollapsed } = useCanvasStore()
 
-export default function ClientSidePlayground({ sessionId }: ClientSidePlaygroundProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const addMessage = useChatStore((state) => state.addMessage);
-
+  // Add console log to track sidebar state changes in the page component
   useEffect(() => {
-    if (isLoaded) return;
-    setIsLoaded(true);
+    console.log('Page component: Sidebar collapsed state changed:', isSidebarCollapsed);
+  }, [isSidebarCollapsed]);
 
-    const initializeChat = async () => {
-      addMessage({
-        type: "userInput",
-        content: "Create an ad for a mango flavored protein powder highlighting its freshness",
-      });
+  return (
+    <div 
+      className={cn(
+        "flex h-screen w-screen transition-all duration-300 ease-in-out", 
+        isSidebarCollapsed ? "p-2" : "p-2"
+      )}
+    >
+      {/* Sidebar */}
+      <div
+        className={cn(
+          "fixed left-0 top-0 h-full w-[372px] bg-white z-40 transition-transform duration-300 ease-in-out",
+          isSidebarCollapsed ? "-translate-x-full" : "translate-x-0"
+        )}
+        style={{ willChange: "transform" }}
+      >
+        <div className="relative h-full">
+          <ChatPanel />
+        </div>
+      </div>
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      addMessage({ type: "agentProgress", content: "Analyzing your request..." });
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      addMessage({
-        type: "agentOutput",
-        content:
-          "There seems to be few issues with the generated adds\n\n1. The ad creatives are not matching the brand tone\n2. The ad creatives need to be 9:16 aspect ratio for Instagram\n3. The ad creatives need to be themed around Diwali\n\nI'll go ahead fix these and make variants",
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      addMessage({
-        type: "agentOutput",
-        subType: "image_generated",
-        content: "Great! Now I have fixed your ads and create 5 more variants",
-        imageUrls: [
-          "/image-1.png",
-          "/image-2.png",
-          "/image-3.png",
-          "/image-4.png"
-        ],
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      addMessage({
-        type: "agentOutput",
-        content:
-          "What do you think about the ads? If you want to try different concept, edit or want more variants, drop your thoughts in the chat 👇",
-      });
-    };
-
-    if (useChatStore.getState().messages.length === 0) {
-      initializeChat();
-    }
-  }, [addMessage, isLoaded, sessionId]);
-
-  // This component now only handles chat initialization
-  // The actual layout is managed by the page.tsx component
-  return null;
-} 
+      {/* Main canvas area */}
+      <div 
+        className="relative flex-1 min-w-0 h-full z-30 transition-transform duration-300 ease-in-out"
+        style={{ 
+          willChange: "transform",
+          transform: isSidebarCollapsed ? 'translateX(0)' : 'translateX(372px)',
+          width: isSidebarCollapsed ? '100vw' : 'calc(100vw - 372px)'
+        }}
+      >
+        <CanvasArea />
+        <CollapsedOverlay position="left" />
+      </div>
+    </div>
+  )
+}

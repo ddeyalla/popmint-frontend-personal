@@ -37,7 +37,7 @@ export default function PlaygroundPage() {
 
       {/* Main canvas area */}
       <div 
-        className="relative flex-1 min-w-0 h-full z-30 transition-transform duration-300 ease-in-out"
+        className="relative flex-1 min-w-0 h-full z-30 transition-transform duration-300 ease-in-out "
         style={{ 
           willChange: "transform",
           transform: isSidebarCollapsed ? 'translateX(0)' : 'translateX(372px)',
