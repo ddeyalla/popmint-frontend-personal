@@ -168,6 +168,45 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, 
             scaleY={effectiveScale}
           />
           
+          {/* Dimensions display below image */}
+          <Group
+            x={(object.x || 0) + ((object.width || 0) / 2)}
+            y={dimensionsY}
+            scaleX={effectiveScale}
+            scaleY={effectiveScale}
+          >
+            <Rect
+              width={80}
+              height={22}
+              cornerRadius={4}
+              fill="rgba(240, 240, 240, 0.9)"
+              stroke="rgba(0, 0, 0, 0.05)"
+              strokeWidth={1}
+              offsetX={40}
+              offsetY={0}
+              shadowColor="rgba(0,0,0,0.1)"
+              shadowBlur={2}
+              shadowOffsetY={1}
+              shadowOpacity={0.2}
+              scaleX={effectiveScale}
+              scaleY={effectiveScale}
+            />
+            <Text
+              text={`${Math.round(object.width || 0)} × ${Math.round(object.height || 0)}`}
+              fontSize={labelFontSize}
+              fontFamily="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+              fill="rgba(0, 0, 0, 0.8)"
+              align="center"
+              verticalAlign="middle"
+              width={80}
+              height={22}
+              offsetX={40}
+              offsetY={0}
+              scaleX={effectiveScale}
+              scaleY={effectiveScale}
+            />
+          </Group>
+          
           {/* Control toolbar - left aligned with fully rounded buttons */}
           <Group
             x={(object.x || 0)}

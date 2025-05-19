@@ -31,7 +31,7 @@ export function AIInputWithSearch({
     minHeight,
     maxHeight,
   });
-  const [showSearch, setShowSearch] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
 
   const handleSubmit = () => {
     if (value.trim()) {

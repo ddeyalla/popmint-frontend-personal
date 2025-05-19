@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { MessageBubble } from "./message-bubble"
 import { ChatInput } from "./chat-input"
 import { useChatStore } from "@/store/chatStore"
-import { CheckCircle } from "lucide-react"
+import { CheckCircle, CircleCheck } from "lucide-react"
 import { useSessionStore } from "@/store/sessionStore"
 import { SidebarToggle } from "@/components/playground/sidebar-toggle"
 import { useCanvasStore } from "@/store/canvasStore"
@@ -95,7 +95,7 @@ export function ChatPanel() {
 
             {messages.length > 0 && messages[messages.length - 1].type === "agentOutput" && (
               <div className="flex items-center gap-2 w-full mt-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CircleCheck className="w-4 h-4 text-green-500" />
                 <div className="opacity-75 font-medium text-zinc-900 text-sm">Task completed in 2 minutes</div>
               </div>
             )}
