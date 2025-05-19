@@ -59,14 +59,7 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
     }
   }, [addMessage, isLoaded, sessionId]);
 
-  return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#FFFFFF] p-2 gap-2">
-      <div className="w-1/4 min-w-[320px] max-w-[372px] h-full flex-shrink-0">
-        <ChatPanel />
-      </div>
-      <div className="flex-1 h-full flex items-center justify-center">
-        <CanvasArea />
-      </div>
-    </div>
-  );
+  // This component now only handles chat initialization
+  // The actual layout is managed by the page.tsx component
+  return null;
 } 

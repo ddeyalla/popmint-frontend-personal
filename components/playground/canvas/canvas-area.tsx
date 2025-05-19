@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Stage, Layer, Group, Transformer } from "react-konva"
 import Konva from 'konva'; // Import Konva namespace for types
 import { KonvaEventObject } from 'konva/lib/Node'; // Import specific event type
@@ -58,13 +58,15 @@ export function CanvasArea() {
   } | null>(null)
   const [isAltKeyPressed, setIsAltKeyPressed] = useState(false)
 
-  // Handle stage resize
+  // Handle stage resize with ResizeObserver for more accurate size tracking
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
+        const width = containerRef.current.offsetWidth || 800;
+        const height = containerRef.current.offsetHeight || 600;
         setStageSize({
-          width: containerRef.current.offsetWidth || 800,
-          height: containerRef.current.offsetHeight || 600,
+          width,
+          height,
         })
       }
     }
@@ -72,11 +74,21 @@ export function CanvasArea() {
     // Initial size update
     updateSize()
 
-    // Add resize listener
-    window.addEventListener("resize", updateSize)
+    // Use ResizeObserver for more accurate size detection
+    const resizeObserver = new ResizeObserver(() => {
+      updateSize();
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    // Also keep the window resize listener as a fallback
+    window.addEventListener("resize", updateSize);
 
     return () => {
-      window.removeEventListener("resize", updateSize)
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateSize);
     }
   }, [])
 
@@ -543,20 +555,34 @@ export function CanvasArea() {
     setStageOffset({ x: offsetX, y: offsetY })
   }
 
+  // Update canvas size when sidebar state changes
+  useEffect(() => {
+    // Force resize event to update canvas dimensions
+    window.dispatchEvent(new Event('resize'));
+    
+    // Add a small delay to ensure the layout has settled
+    const resizeTimer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 350); // Match the transition duration
+    
+    return () => clearTimeout(resizeTimer);
+  }, [isSidebarCollapsed]);
+
   return (
     <div
       className={cn(
         "relative w-full h-full bg-white",
-        isSidebarCollapsed ? "" : "rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]"
+        isSidebarCollapsed ? "absolute inset-0" : "rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]"
       )}
     >
       {/* Dot grid overlay */}
       <div className="pointer-events-none absolute rounded-[10px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]" />
       {/* Outer background is now plain white */}
       <div
+        key={isSidebarCollapsed ? 'collapsed' : 'expanded'}
         className={cn(
-          "w-full h-full overflow-hidden transition-all duration-200 ease-in-out",
-          !isSidebarCollapsed && "max-w-[1131px] mx-auto flex items-center justify-center"
+          "w-full h-full overflow-hidden",
+          isSidebarCollapsed ? "w-screen h-screen" : "max-w-[1131px] mx-auto flex items-center justify-center"
         )}
         style={{ overflow: "hidden" }}
         ref={containerRef}
