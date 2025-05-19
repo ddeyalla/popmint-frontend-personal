@@ -123,7 +123,3 @@ Contributions to Popmint are welcome! If you find a bug or have a feature reques
 Please adhere to the Contributor Covenant Code of Conduct in all interactions.
 
 ---
-
-## License
-
-Popmint is released under the MIT License. (See the `LICENSE` file for details.)
