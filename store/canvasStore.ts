@@ -25,9 +25,11 @@ type CanvasState = {
   zoomLevel: number
   stageOffset: { x: number; y: number }
   toolMode: 'move' | 'hand' | 'scale'
+  isSidebarCollapsed: boolean
   setToolMode: (mode: 'move' | 'hand' | 'scale') => void
   setStageOffset: (offset: { x: number; y: number }) => void
   updateStageOffset: (delta: { x: number; y: number }) => void
+  toggleSidebar: () => void
   addObject: (object: Omit<KonvaObject, "id">) => void
   addImage: (src: string, x?: number, y?: number) => void
   addText: (text: string, x?: number, y?: number) => void
@@ -42,6 +44,7 @@ type CanvasState = {
   redo: () => void
   saveState: () => void
   isObjectSelected: (id: string) => boolean
+  duplicateObject: (id: string) => string | null
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -52,6 +55,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   zoomLevel: 1,
   stageOffset: { x: 0, y: 0 },
   toolMode: 'move',
+  isSidebarCollapsed: false,
   setToolMode: (mode) => set({ toolMode: mode }),
 
   setStageOffset: (offset) => set({ stageOffset: offset }),
@@ -62,6 +66,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         y: state.stageOffset.y + delta.y,
       },
     })),
+
+  toggleSidebar: () => set(state => ({ 
+    isSidebarCollapsed: !state.isSidebarCollapsed 
+  })),
 
   addObject: (object) => {
     try {
@@ -247,4 +255,37 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   isObjectSelected: (id) => get().selectedObjectIds.includes(id),
+
+  duplicateObject: (id) => {
+    try {
+      const objectToDuplicate = get().objects.find(obj => obj.id === id);
+      if (!objectToDuplicate) return null;
+
+      // Create a new ID for the duplicate
+      const newId = `${id}-${Date.now()}`;
+      
+      // Create a duplicate with offset
+      const duplicate: KonvaObject = {
+        ...objectToDuplicate,
+        id: newId,
+        x: objectToDuplicate.x + 10,
+        y: objectToDuplicate.y + 10
+      };
+
+      set(state => {
+        const newObjects = [...state.objects, duplicate];
+        return {
+          objects: newObjects,
+          history: [...state.history.slice(0, state.historyStep + 1), [...newObjects]],
+          historyStep: state.historyStep + 1,
+          selectedObjectIds: [newId]
+        };
+      });
+
+      return newId;
+    } catch (error) {
+      console.error("Error duplicating object:", error);
+      return null;
+    }
+  },
 }))

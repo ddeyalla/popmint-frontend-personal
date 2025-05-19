@@ -1,11 +1,15 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Sora } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { StagewiseToolbar } from "@stagewise/toolbar-next"
 
 const inter = Inter({ subsets: ["latin"] })
+const sora = Sora({ 
+  subsets: ["latin"],
+  variable: '--font-sora',
+})
 
 export const metadata: Metadata = {
   title: "Popmint - AI Ad Agent",
@@ -19,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${inter.className} ${sora.variable}`}>
         {process.env.NODE_ENV === "development" && (
           <StagewiseToolbar config={{ plugins: [] }} />
         )}

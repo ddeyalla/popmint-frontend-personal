@@ -1,19 +1,40 @@
-import { Suspense } from "react";
-import { ChatPanel } from "@/components/playground/chat-panel/chat-panel";
-import { CanvasArea } from "@/components/playground/canvas/canvas-area";
-import ClientSidePlayground from "./client";
+"use client"
 
-// This is a Server Component
-export default function PlaygroundPage({
-  params,
-}: {
-  params: { sessionId: string };
-}) {
-  const { sessionId } = params;
+import { CanvasArea } from "@/components/playground/canvas/canvas-area"
+import { ChatPanel } from "@/components/playground/chat-panel/chat-panel"
+import { CollapsedOverlay } from "@/components/playground/collapsed-overlay"
+import { useCanvasStore } from "@/store/canvasStore"
+import { cn } from "@/lib/utils"
+
+export default function PlaygroundPage() {
+  const { isSidebarCollapsed } = useCanvasStore()
 
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ClientSidePlayground sessionId={sessionId} />
-    </Suspense>
-  );
+    <div className="flex h-screen w-screen p-2 overflow-hidden">
+      {/* Sidebar */}
+      <div
+        className={cn(
+          "fixed left-0 top-0 h-full w-[400px] bg-white z-30 transition-transform duration-300 ease-in-out", // subtle right shadow
+          isSidebarCollapsed ? "-translate-x-full" : "translate-x-0"
+        )}
+        style={{ willChange: "transform" }}
+      >
+        <div className="relative h-full">
+          <ChatPanel />
+        </div>
+      </div>
+
+      {/* Main canvas area */}
+      <div 
+        className={cn(
+          "relative flex-1 min-w-0 transition-all duration-300 ease-in-out",
+          isSidebarCollapsed ? "ml-0" : "ml-[400px]"
+        )}
+        style={{ willChange: "margin" }}
+      >
+        <CanvasArea />
+        <CollapsedOverlay position="left" />
+      </div>
+    </div>
+  )
 }

@@ -7,10 +7,15 @@ import { MessageBubble } from "./message-bubble"
 import { ChatInput } from "./chat-input"
 import { useChatStore } from "@/store/chatStore"
 import { CheckCircle } from "lucide-react"
+import { useSessionStore } from "@/store/sessionStore"
+import { SidebarToggle } from "@/components/playground/sidebar-toggle"
+import { useCanvasStore } from "@/store/canvasStore"
 
 export function ChatPanel() {
   const messages = useChatStore((state) => state.messages)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { projectName } = useSessionStore()
+  const { isSidebarCollapsed } = useCanvasStore()
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -18,9 +23,9 @@ export function ChatPanel() {
   }, [messages])
 
   return (
-    <div className="flex flex-col bg-transparent bg-white py-0.5 px-1 h-full">
+    <div className="flex flex-col bg-transparent bg-white py-2 px-2 h-full">
       {/* Header */}
-      <div className="flex flex-col items-start gap-1 w-full">
+      <div className="flex flex-col items-start gap-1 w-full relative">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-1">
             <div className="w-6 h-6 bg-brand-purple rounded-full flex items-center justify-center">
@@ -28,11 +33,12 @@ export function ChatPanel() {
             </div>
             <div className="font-semibold text-zinc-950 text-md">Popmint</div>
           </div>
+          <SidebarToggle />
         </div>
 
         <div className="flex items-center px-1 py-2 w-full">
           <div className="flex h-6 items-center gap-1 flex-1">
-            <div className="font-medium text-neutral-800 text-sm">the-whole-truth-ad</div>
+            <span className="text-[14px] font-[550] text-[rgba(0,0,0,0.9)]">{projectName}</span>
           </div>
           <div className="font-regular text-neutral-400 text-xs tracking-[0.06px]">Auto-saved</div>
         </div>

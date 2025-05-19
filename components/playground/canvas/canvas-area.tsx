@@ -26,7 +26,11 @@ export function CanvasArea() {
     deleteObject,
     selectAllObjects,
     clearSelection,
+    addImage,
+    addText,
+    updateObject,
     toolMode,
+    duplicateObject,
   } = useCanvasStore()
   const messages = useChatStore((state) => state.messages)
   const stageRef = useRef<Konva.Stage>(null)
@@ -40,6 +44,17 @@ export function CanvasArea() {
   const lastPointer = useRef<{ x: number; y: number } | null>(null)
   const [touchPan, setTouchPan] = useState(false)
   const [dragStartPositions, setDragStartPositions] = useState<{ [id: string]: { x: number; y: number } }>({})
+  const [isDuplicating, setIsDuplicating] = useState(false)
+  const duplicateStartPos = useRef<{ x: number; y: number } | null>(null)
+  const [duplicationActive, setDuplicationActive] = useState(false)
+  const [duplicationOriginalId, setDuplicationOriginalId] = useState<string | null>(null)
+  const [duplicationData, setDuplicationData] = useState<{
+    offsetX: number;
+    offsetY: number;
+    startX: number;
+    startY: number;
+  } | null>(null)
+  const [isAltKeyPressed, setIsAltKeyPressed] = useState(false)
 
   // Handle stage resize
   useEffect(() => {
@@ -117,11 +132,32 @@ export function CanvasArea() {
         useCanvasStore.getState().redo();
         return;
       }
+
+      if (e.key === 'Alt' || e.key === 'Option') {
+        setIsAltKeyPressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Alt' || e.key === 'Option') {
+        setIsAltKeyPressed(false);
+        
+        // If we're in the middle of duplication, complete it
+        if (duplicationActive) {
+          setDuplicationActive(false);
+          setDuplicationOriginalId(null);
+          setDuplicationData(null);
+        }
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [zoomLevel, selectedObjectIds, setZoomLevel, deleteObject, selectAllObjects]);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [zoomLevel, selectedObjectIds, setZoomLevel, deleteObject, selectAllObjects, duplicationActive]);
 
   // Process image messages from chat
   useEffect(() => {
@@ -225,7 +261,7 @@ export function CanvasArea() {
     };
   }, [toolMode]);
 
-  // Update mouse handlers based on tool mode
+  // Tracked object and state for Alt+drag duplication
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
     if (!stage) return;
@@ -245,6 +281,7 @@ export function CanvasArea() {
     const stage = e.target.getStage();
     if (!stage) return;
 
+    // Handle panning
     if ((toolMode === 'hand' || (toolMode === 'move' && e.evt.button === 1)) && isPanning && panStart.current && lastPointer.current) {
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
@@ -256,6 +293,25 @@ export function CanvasArea() {
       updateStageOffset(delta);
       lastPointer.current = pointer;
     }
+
+    // Handle duplication dragging
+    if (duplicationActive && duplicationData && selectedObjectIds.length === 1) {
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      const deltaX = (pointer.x - duplicationData.startX) / zoomLevel;
+      const deltaY = (pointer.y - duplicationData.startY) / zoomLevel;
+
+      // Get the selected object (should be the duplicate)
+      const selectedObject = objects.find(obj => obj.id === selectedObjectIds[0]);
+      if (selectedObject) {
+        // Update the duplicate position
+        updateObject(selectedObject.id, {
+          x: duplicationData.offsetX + deltaX,
+          y: duplicationData.offsetY + deltaY
+        });
+      }
+    }
   };
 
   const handleMouseUp = (e: KonvaEventObject<MouseEvent>) => {
@@ -265,9 +321,17 @@ export function CanvasArea() {
     if (toolMode === 'hand') {
       stage.container().style.cursor = 'grab';
     }
+    
     setIsPanning(false);
     panStart.current = null;
     lastPointer.current = null;
+
+    // End duplication if active
+    if (duplicationActive) {
+      setDuplicationActive(false);
+      setDuplicationOriginalId(null);
+      setDuplicationData(null);
+    }
   };
 
   // Update touch handlers to respect tool mode
@@ -321,21 +385,55 @@ export function CanvasArea() {
   }
 
   /**
-   * Handle selection with Shift-click support
+   * Handle selection with Option/Alt key for duplication
    */
   const handleSelect = (id: string, e?: KonvaEventObject<MouseEvent | TouchEvent>) => {
-    if (e && (e.evt.shiftKey || e.evt.metaKey)) {
-      // Toggle selection
+    if (!e) return;
+
+    // For Alt/Option + click: Duplicate the object and start dragging the duplicate
+    if (e.evt instanceof MouseEvent && isAltKeyPressed) {
+      // Prevent default to avoid text selection or other behaviors
+      e.evt.preventDefault();
+      
+      // Create a duplicate via the store method
+      const newId = duplicateObject(id);
+      if (!newId) return;
+
+      // Get stage position for tracking
+      const stage = e.target.getStage();
+      if (!stage) return;
+      
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+      
+      // Find the newly created object
+      const duplicatedObject = objects.find(obj => obj.id === newId);
+      if (!duplicatedObject) return;
+      
+      // Store the original position data for dragging calculations
+      setDuplicationActive(true);
+      setDuplicationOriginalId(id);
+      setDuplicationData({
+        offsetX: duplicatedObject.x,
+        offsetY: duplicatedObject.y,
+        startX: pointer.x,
+        startY: pointer.y
+      });
+      
+      return;
+    }
+
+    // Regular selection handling
+    if (e.evt instanceof MouseEvent && e.evt.shiftKey) {
       if (selectedObjectIds.includes(id)) {
         selectObject(selectedObjectIds.filter((sid) => sid !== id));
       } else {
         selectObject([...selectedObjectIds, id]);
       }
     } else {
-      // Single select
       selectObject([id]);
     }
-  }
+  };
   
   /**
    * Handle group drag end
