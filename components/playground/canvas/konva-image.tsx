@@ -1,17 +1,19 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Image, Transformer } from "react-konva"
+import { Image, Transformer, Group } from "react-konva"
 import { type KonvaObject, useCanvasStore } from "@/store/canvasStore"
 
 interface KonvaImageProps {
   object: KonvaObject
   isSelected: boolean
   onSelect: (e: any) => void
+  id?: string
+  isMultiSelected?: boolean
 }
 
-export function KonvaImage({ object, isSelected, onSelect }: KonvaImageProps) {
-  const { selectedObjectId, selectObject, updateObject } = useCanvasStore()
+export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected }: KonvaImageProps) {
+  const { updateObject } = useCanvasStore()
   const imageRef = useRef<any>(null)
   const transformerRef = useRef<any>(null)
   const [image, setImage] = useState<HTMLImageElement | null>(null)
@@ -49,7 +51,7 @@ export function KonvaImage({ object, isSelected, onSelect }: KonvaImageProps) {
   }, [object.src])
 
   useEffect(() => {
-    if (isSelected && transformerRef.current && imageRef.current) {
+    if (isSelected && !isMultiSelected && transformerRef.current && imageRef.current) {
       try {
         transformerRef.current.nodes([imageRef.current])
         transformerRef.current.getLayer()?.batchDraw()
@@ -57,7 +59,7 @@ export function KonvaImage({ object, isSelected, onSelect }: KonvaImageProps) {
         console.error("Error updating transformer:", error)
       }
     }
-  }, [isSelected])
+  }, [isSelected, isMultiSelected])
 
   const handleTransformEnd = () => {
     if (!imageRef.current) return
@@ -90,7 +92,7 @@ export function KonvaImage({ object, isSelected, onSelect }: KonvaImageProps) {
         y={object.y || 0}
         width={object.width || 100}
         height={object.height || 100}
-        draggable={object.draggable !== false}
+        draggable={!isMultiSelected && (object.draggable !== false)}
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={(e) => {
@@ -100,19 +102,8 @@ export function KonvaImage({ object, isSelected, onSelect }: KonvaImageProps) {
           })
         }}
         onTransformEnd={handleTransformEnd}
+        id={id || object.id}
       />
-      {isSelected && (
-        <Transformer
-          ref={transformerRef}
-          boundBoxFunc={(oldBox, newBox) => {
-            // Limit minimum size
-            if (newBox.width < 5 || newBox.height < 5) {
-              return oldBox
-            }
-            return newBox
-          }}
-        />
-      )}
     </>
   )
 }

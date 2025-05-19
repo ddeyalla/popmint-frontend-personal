@@ -33,7 +33,7 @@ type CanvasState = {
   addText: (text: string, x?: number, y?: number) => void
   updateObject: (id: string, updates: Partial<KonvaObject>) => void
   deleteObject: (ids: string | string[]) => void
-  selectObject: (id: string | null, append?: boolean) => void
+  selectObject: (ids: string[] | null) => void
   selectAllObjects: () => void
   clearSelection: () => void
   toggleObjectSelection: (id: string) => void
@@ -176,20 +176,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
   },
 
-  selectObject: (id, append = false) => {
-    if (id === null) {
-      set({ selectedObjectIds: [] })
-    } else if (append) {
-      set((state) => {
-        if (state.selectedObjectIds.includes(id)) {
-          return { selectedObjectIds: state.selectedObjectIds.filter((sid) => sid !== id) }
-        }
-        return { selectedObjectIds: [...state.selectedObjectIds, id] }
-      })
-    } else {
-      set({ selectedObjectIds: [id] })
-    }
-  },
+  selectObject: (ids: string[] | null) => set({ selectedObjectIds: ids ?? [] }),
 
   selectAllObjects: () => {
     const allIds = get().objects.filter((obj) => obj.type === "image").map((obj) => obj.id)

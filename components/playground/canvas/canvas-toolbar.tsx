@@ -38,6 +38,13 @@ export function CanvasToolbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const currentTool = TOOL_OPTIONS.find((t) => t.value === toolMode) || TOOL_OPTIONS[0]
 
+  // Track the current import row
+  const importRowRef = useRef(0)
+  const importColRef = useRef(0)
+  const IMAGES_PER_ROW = 10 // or any reasonable max per row
+  const IMAGE_SPACING = 40
+  const IMAGE_ROW_HEIGHT = 220 // adjust as needed for your image height
+
   // Keyboard shortcuts for tool switching
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -53,16 +60,53 @@ export function CanvasToolbar() {
   // Upload image handler
   const handleUploadClick = () => fileInputRef.current?.click()
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      if (typeof ev.target?.result === "string") {
-        addImage(ev.target.result)
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    // Always start a new row for each import
+    let col = 0
+    let row = importRowRef.current
+    const processFile = (idx: number) => {
+      if (idx >= files.length) {
+        // After import, update refs for next import (always next row)
+        importColRef.current = 0
+        importRowRef.current = row + 1
+        e.target.value = "" // reset input
+        return
       }
+      const file = files[idx]
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        if (!ev.target) {
+          processFile(idx + 1)
+          return
+        }
+        if (typeof ev.target.result === "string") {
+          // Load image to get width/height if needed
+          const img = new window.Image()
+          img.onload = () => {
+            const x = 20 + (col * (180 + IMAGE_SPACING))
+            const y = 20 + (row * IMAGE_ROW_HEIGHT)
+            addImage(ev.target.result as string, x, y)
+            col++
+            if (col >= IMAGES_PER_ROW) {
+              col = 0
+              row++
+            }
+            processFile(idx + 1)
+          }
+          img.onerror = () => {
+            processFile(idx + 1)
+          }
+          if (ev.target) {
+            img.src = ev.target.result as string
+          }
+        } else {
+          processFile(idx + 1)
+        }
+      }
+      reader.readAsDataURL(file)
     }
-    reader.readAsDataURL(file)
-    e.target.value = "" // reset input
+    processFile(0)
   }
 
   return (
@@ -73,7 +117,7 @@ export function CanvasToolbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="h-8 w-16 rounded-full hover:bg-gray-100 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-600"
             onClick={() => setDropdownOpen((open) => !open)}
             aria-label="Select Tool"
             aria-haspopup="listbox"
@@ -83,7 +127,7 @@ export function CanvasToolbar() {
             <ChevronDown className="h-4 w-4 ml-1 text-gray-400" />
           </Button>
           {dropdownOpen && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-4 w-40 bg-white border border-gray-200 rounded-3xl shadow-xl z-50 animate-fade-in">
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-4 w-40 bg-white border border-gray-200 rounded-3xl shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] z-50 animate-fade-in">
               <ul className="p-1" role="listbox" aria-label="Tool selection">
                 {TOOL_OPTIONS.map((tool) => (
                   <li key={tool.value} role="option" aria-selected={toolMode === tool.value}>
@@ -128,6 +172,7 @@ export function CanvasToolbar() {
                 accept="image/*"
                 className="hidden"
                 onChange={handleFileChange}
+                multiple
               />
             </Button>
           </TooltipTrigger>

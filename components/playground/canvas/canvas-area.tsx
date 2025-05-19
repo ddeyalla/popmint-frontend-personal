@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Stage, Layer } from "react-konva"
+import { Stage, Layer, Group, Transformer } from "react-konva"
+import Konva from 'konva'; // Import Konva namespace for types
+import { KonvaEventObject } from 'konva/lib/Node'; // Import specific event type
 import { KonvaImage } from "./konva-image"
 import { KonvaText } from "./konva-text"
 import { useCanvasStore } from "@/store/canvasStore"
@@ -9,6 +11,7 @@ import { useChatStore } from "@/store/chatStore"
 import { ZoomIn, ZoomOut, Maximize, Layout } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CanvasToolbar } from "./canvas-toolbar" // Import CanvasToolbar
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function CanvasArea() {
   const {
@@ -25,14 +28,17 @@ export function CanvasArea() {
     clearSelection,
   } = useCanvasStore()
   const messages = useChatStore((state) => state.messages)
-  const stageRef = useRef<any>(null)
+  const stageRef = useRef<Konva.Stage>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const groupRef = useRef<Konva.Group>(null)
+  const transformerRef = useRef<Konva.Transformer>(null)
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 })
   const [isInitialized, setIsInitialized] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const panStart = useRef<{ x: number; y: number } | null>(null)
   const lastPointer = useRef<{ x: number; y: number } | null>(null)
   const [touchPan, setTouchPan] = useState(false)
+  const [dragStartPositions, setDragStartPositions] = useState<{ [id: string]: { x: number; y: number } }>({})
 
   // Handle stage resize
   useEffect(() => {
@@ -143,74 +149,203 @@ export function CanvasArea() {
     }
   }, [objects.length, isInitialized])
 
-  const handleStageClick = (e: any) => {
-    // Deselect when clicking on empty area
+  const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
     if (e.target === e.currentTarget) {
       clearSelection()
     }
   }
 
-  // Mouse panning handlers
-  const handleMouseDown = (e: any) => {
+  /**
+   * Mouse down handler for panning
+   */
+  const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage()
     // Only start panning if clicking background (not an object)
-    if (e.target === e.target.getStage()) {
+    if (e.target === stage && stage) { // Added stage null check
       setIsPanning(true)
-      panStart.current = { x: e.evt.clientX, y: e.evt.clientY }
-      lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY }
-      // Deselect any selected object
-      selectObject(null)
+      panStart.current = stage.getPointerPosition() // Use Konva's pointer position
+      lastPointer.current = stage.getPointerPosition()
+      // clearSelection(); // Deselection is handled by handleStageClick
     }
   }
 
-  const handleMouseMove = (e: any) => {
-    if (!isPanning || !panStart.current) return
-    const pointer = { x: e.evt.clientX, y: e.evt.clientY }
+  /**
+   * Mouse move handler for panning
+   */
+  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+    if (!isPanning || !panStart.current || !lastPointer.current) return // Added null check for lastPointer
+    const stage = e.target.getStage()
+    if (!stage) return;
+    const pointer = stage.getPointerPosition()
+    if (!pointer) return; // pointer can be null
+
     const delta = {
-      x: pointer.x - lastPointer.current!.x,
-      y: pointer.y - lastPointer.current!.y,
+      x: pointer.x - lastPointer.current.x,
+      y: pointer.y - lastPointer.current.y,
     }
     updateStageOffset(delta)
     lastPointer.current = pointer
   }
 
-  const handleMouseUp = () => {
+  /**
+   * Mouse up handler to stop panning
+   */
+  const handleMouseUp = (e: KonvaEventObject<MouseEvent>) => {
     setIsPanning(false)
     panStart.current = null
     lastPointer.current = null
   }
 
-  // Touch panning handlers (two-finger pan)
-  const handleTouchStart = (e: any) => {
+  /**
+   * Touch start handler for two-finger panning
+   */
+  const handleTouchStart = (e: KonvaEventObject<TouchEvent>) => {
+    const stage = e.target.getStage();
+    if (!stage) return;
+
     if (e.evt.touches && e.evt.touches.length === 2) {
       setTouchPan(true)
-      panStart.current = {
-        x: (e.evt.touches[0].clientX + e.evt.touches[1].clientX) / 2,
-        y: (e.evt.touches[0].clientY + e.evt.touches[1].clientY) / 2,
+      const touch1 = e.evt.touches[0]
+      const touch2 = e.evt.touches[1]
+      const mid = {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2,
       }
-      lastPointer.current = { ...panStart.current }
-      selectObject(null)
+      panStart.current = mid // Store relative to screen, will be transformed by stage scale/offset internally
+      lastPointer.current = { ...mid }
+      // clearSelection();
+    } else if (e.evt.touches && e.evt.touches.length === 1) {
+        // Handle single touch as potential drag start for objects if not handled by transformer
+        // This part would be more relevant if individual items have their own drag handlers.
+        // For now, Transformer handles drags for selected items.
+        // If clicking on background, stage onMouseDown will handle it.
     }
   }
 
-  const handleTouchMove = (e: any) => {
-    if (!touchPan || !panStart.current || !(e.evt.touches && e.evt.touches.length === 2)) return
-    const pointer = {
-      x: (e.evt.touches[0].clientX + e.evt.touches[1].clientX) / 2,
-      y: (e.evt.touches[0].clientY + e.evt.touches[1].clientY) / 2,
+  /**
+   * Touch move handler for two-finger panning
+   */
+  const handleTouchMove = (e: KonvaEventObject<TouchEvent>) => {
+    if (!touchPan || !panStart.current || !lastPointer.current || !(e.evt.touches && e.evt.touches.length === 2)) return
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    const touch1 = e.evt.touches[0]
+    const touch2 = e.evt.touches[1]
+    const mid = {
+      x: (touch1.clientX + touch2.clientX) / 2,
+      y: (touch1.clientY + touch2.clientY) / 2,
     }
     const delta = {
-      x: pointer.x - lastPointer.current!.x,
-      y: pointer.y - lastPointer.current!.y,
+      x: mid.x - lastPointer.current.x,
+      y: mid.y - lastPointer.current.y,
     }
-    updateStageOffset(delta)
-    lastPointer.current = pointer
+    // For touch, delta needs to be divided by zoom level if stage drag does not account for it.
+    // However, updateStageOffset should ideally take absolute deltas.
+    // Let's assume updateStageOffset handles this correctly or stage.dragBoundFunc does.
+    // For simplicity, if updateStageOffset expects screen-space delta, this is fine.
+    // If it expects stage-space delta, then:
+    // updateStageOffset({ x: delta.x / zoomLevel, y: delta.y / zoomLevel });
+    updateStageOffset(delta) // Assuming this takes screen-space delta
+    lastPointer.current = mid
   }
 
-  const handleTouchEnd = (e: any) => {
+  /**
+   * Touch end handler to stop panning
+   */
+  const handleTouchEnd = (e: KonvaEventObject<TouchEvent>) => {
     setTouchPan(false)
     panStart.current = null
     lastPointer.current = null
   }
+
+  /**
+   * Handle selection with Shift-click support
+   */
+  const handleSelect = (id: string, e?: KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (e && (e.evt.shiftKey || e.evt.metaKey)) {
+      // Toggle selection
+      if (selectedObjectIds.includes(id)) {
+        selectObject(selectedObjectIds.filter((sid) => sid !== id));
+      } else {
+        selectObject([...selectedObjectIds, id]);
+      }
+    } else {
+      // Single select
+      selectObject([id]);
+    }
+  }
+  
+  /**
+   * Handle group drag end
+   */
+  const handleGroupDragEnd = (e: KonvaEventObject<DragEvent>) => {
+    const groupNode = e.target as Konva.Group // e.target is the Konva.Group
+    if (!groupNode) return
+
+    const dx = groupNode.x()
+    const dy = groupNode.y()
+
+    selectedObjectIds.forEach((id) => {
+      const obj = objects.find((o) => o.id === id)
+      if (obj) {
+        useCanvasStore.getState().updateObject(id, {
+          x: (obj.x || 0) + dx, // Ensure obj.x and obj.y are numbers
+          y: (obj.y || 0) + dy,
+        })
+      }
+    })
+    groupNode.position({ x: 0, y: 0 }) // Reset group position
+    groupNode.getStage()?.draggable(true) // Re-enable stage draggable
+  }
+  
+  /**
+   * Handle group transform end (also used for single object transform via Transformer)
+   */
+  const handleGroupTransformEnd = (e: KonvaEventObject<Event>) => {
+    const transformer = transformerRef.current;
+    if (!transformer) return;
+
+    transformer.nodes().forEach((node: Konva.Node) => { // node is Konva.Node, could be Image or Text
+        const obj = objects.find(o => o.id === node.id());
+        if (obj) {
+            useCanvasStore.getState().updateObject(obj.id, {
+                x: node.x(),
+                y: node.y(),
+                width: node.width() * node.scaleX(),
+                height: node.height() * node.scaleY(),
+                // rotation: node.rotation(), // TODO: Add 'rotation' to KonvaObject type in canvasStore.ts to persist rotation
+            });
+            node.scaleX(1);
+            node.scaleY(1);
+            node.rotation(0); // Reset visual rotation; store update needed for persistence
+        }
+    });
+    transformer.getStage()?.draggable(true);
+  }
+
+  // Add the new useEffect for transformer nodes
+  useEffect(() => {
+    if (!transformerRef.current || !stageRef.current) return;
+
+    setTimeout(() => {
+      if (!transformerRef.current || !stageRef.current) return;
+
+      if (selectedObjectIds.length === 1) {
+        const node = stageRef.current.findOne(`#${selectedObjectIds[0]}`);
+        if (node) {
+          transformerRef.current.nodes([node]);
+        } else {
+          transformerRef.current.nodes([]);
+        }
+      } else if (selectedObjectIds.length > 1 && groupRef.current) {
+        transformerRef.current.nodes([groupRef.current]);
+      } else {
+        transformerRef.current.nodes([]);
+      }
+      transformerRef.current.getLayer()?.batchDraw();
+    }, 0);
+  }, [selectedObjectIds, stageRef.current, groupRef.current]);
 
   const zoomTools = [
     { icon: <ZoomOut className="h-4 w-4 text-gray-700" /> },
@@ -219,8 +354,38 @@ export function CanvasArea() {
     { icon: <Maximize className="h-4 w-4 text-gray-700" /> },
   ]
 
+  /**
+   * Zoom to fit all objects within the visible canvas area
+   */
+  const onFitToScreen = () => {
+    if (!stageRef.current || objects.length === 0 || !containerRef.current) return
+    // Calculate bounding box of all objects
+    const minX = Math.min(...objects.map((obj) => obj.x))
+    const minY = Math.min(...objects.map((obj) => obj.y))
+    const maxX = Math.max(...objects.map((obj) => (obj.x + (obj.width || 0))))
+    const maxY = Math.max(...objects.map((obj) => (obj.y + (obj.height || 0))))
+    const contentWidth = maxX - minX
+    const contentHeight = maxY - minY
+    const padding = 40 // px
+    const availableWidth = (containerRef.current.offsetWidth || 800) - padding * 2
+    const availableHeight = (containerRef.current.offsetHeight || 600) - padding * 2
+    // Calculate scale to fit
+    const scale = Math.min(
+      availableWidth / (contentWidth || 1),
+      availableHeight / (contentHeight || 1),
+      2 // max zoom
+    )
+    // Center the content
+    const offsetX = padding + (availableWidth - contentWidth * scale) / 2 - minX * scale
+    const offsetY = padding + (availableHeight - contentHeight * scale) / 2 - minY * scale
+    setZoomLevel(Number(scale.toFixed(2)))
+    setStageOffset({ x: offsetX, y: offsetY })
+  }
+
   return (
-    <div className="relative w-full h-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] bg-white rounded-[10px] border border-gray-200 p-6 flex items-center justify-center">
+    <div className="relative w-full h-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] bg-white rounded-[10px] flex items-center justify-center">
+      {/* Dot grid overlay */}
+      <div className="pointer-events-none absolute rounded-[10px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]" />
       {/* Outer background is now plain white */}
       <div
         className="w-full h-full max-w-[1131px] max-h-[100%] overflow-hidden transition-all duration-200 ease-in-out flex items-center justify-center"
@@ -237,103 +402,223 @@ export function CanvasArea() {
             onClick={handleStageClick}
             onTap={handleStageClick}
             scale={{ x: zoomLevel, y: zoomLevel }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onMouseDown={(e: KonvaEventObject<MouseEvent>) => {
+                // Priority to group drag/transform, then panning
+                // Event bubbling should be stopped by interactive elements (group, transformer)
+                // If event reaches here and is on the stage itself, then pan or deselect.
+                if (e.target === e.currentTarget) { // e.currentTarget is the Stage
+                    handleMouseDown(e);      // For panning
+                    // handleStageClick(e) is now called by onClick/onTap for deselection
+                }
+            }}
+            onMouseMove={(e: KonvaEventObject<MouseEvent>) => handleMouseMove(e)} // Panning
+            onMouseUp={(e: KonvaEventObject<MouseEvent>) => handleMouseUp(e)} // Panning
+            onTouchStart={(e: KonvaEventObject<TouchEvent>) => handleTouchStart(e)} // Panning
+            onTouchMove={(e: KonvaEventObject<TouchEvent>) => handleTouchMove(e)} // Panning
+            onTouchEnd={(e: KonvaEventObject<TouchEvent>) => handleTouchEnd(e)} // Panning
           >
             <Layer>
-              {objects.map((obj) => {
-                if (obj.type === "image") {
-                  return (
+              {/* Multi-select: render unselected objects, and selected objects inside a draggable group */}
+              {selectedObjectIds.length > 1 ? (
+                <>
+                  {objects.filter(obj => !selectedObjectIds.includes(obj.id)).map(obj =>
+                    obj.type === 'image' ? (
+                      <KonvaImage
+                        key={obj.id}
+                        id={obj.id}
+                        object={obj}
+                        isSelected={false}
+                        onSelect={e => handleSelect(obj.id, e)}
+                        isMultiSelected={false}
+                      />
+                    ) : (
+                      <KonvaText
+                        key={obj.id}
+                        id={obj.id}
+                        object={obj}
+                        isSelected={false}
+                        onSelect={e => handleSelect(obj.id, e)}
+                        isMultiSelected={false}
+                      />
+                    )
+                  )}
+                  <Group
+                    ref={groupRef}
+                    draggable
+                    onDragStart={() => {
+                      const positions: { [id: string]: { x: number; y: number } } = {};
+                      objects.forEach(obj => {
+                        if (selectedObjectIds.includes(obj.id)) {
+                          positions[obj.id] = { x: obj.x, y: obj.y };
+                        }
+                      });
+                      setDragStartPositions(positions);
+                    }}
+                    onDragEnd={e => {
+                      const groupNode = groupRef.current;
+                      if (!groupNode) return;
+                      const dx = groupNode.x();
+                      const dy = groupNode.y();
+                      selectedObjectIds.forEach(id => {
+                        const start = dragStartPositions[id];
+                        if (start) {
+                          useCanvasStore.getState().updateObject(id, {
+                            x: start.x + dx,
+                            y: start.y + dy,
+                          });
+                        }
+                      });
+                      groupNode.position({ x: 0, y: 0 });
+                      setDragStartPositions({});
+                    }}
+                    x={0}
+                    y={0}
+                  >
+                    {objects.filter(obj => selectedObjectIds.includes(obj.id)).map(obj =>
+                      obj.type === 'image' ? (
+                        <KonvaImage
+                          key={obj.id}
+                          id={obj.id}
+                          object={obj}
+                          isSelected={true}
+                          onSelect={e => handleSelect(obj.id, e)}
+                          isMultiSelected={true}
+                        />
+                      ) : (
+                        <KonvaText
+                          key={obj.id}
+                          id={obj.id}
+                          object={obj}
+                          isSelected={true}
+                          onSelect={e => handleSelect(obj.id, e)}
+                          isMultiSelected={true}
+                        />
+                      )
+                    )}
+                  </Group>
+                </>
+              ) : (
+                // Single or no selection: render all objects, only selected gets Transformer
+                objects.map(obj => {
+                  const isSelected = selectedObjectIds.includes(obj.id);
+                  return obj.type === 'image' ? (
                     <KonvaImage
                       key={obj.id}
+                      id={obj.id}
                       object={obj}
-                      isSelected={selectedObjectIds.includes(obj.id)}
-                      onSelect={(e: any) => {
-                        if (e.evt.shiftKey) {
-                          selectObject(obj.id, true)
-                        } else {
-                          selectObject(obj.id)
-                        }
-                      }}
+                      isSelected={isSelected}
+                      onSelect={e => handleSelect(obj.id, e)}
+                      isMultiSelected={false}
                     />
-                  )
-                } else if (obj.type === "text") {
-                  return (
+                  ) : (
                     <KonvaText
                       key={obj.id}
+                      id={obj.id}
                       object={obj}
-                      isSelected={selectedObjectIds.includes(obj.id)}
-                      onSelect={(e: any) => {
-                        if (e.evt.shiftKey) {
-                          selectObject(obj.id, true)
-                        } else {
-                          selectObject(obj.id)
-                        }
-                      }}
+                      isSelected={isSelected}
+                      onSelect={e => handleSelect(obj.id, e)}
+                      isMultiSelected={false}
                     />
-                  )
-                }
-                return null
-              })}
+                  );
+                })
+              )}
+              {/* Always render a single Transformer */}
+              <Transformer
+                ref={transformerRef}
+                rotateEnabled={true}
+                enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+              />
             </Layer>
           </Stage>
         )}
       </div>
       {/* Zoom controls and share button */}
-      <div className="inline-flex items-center gap-2 absolute top-4 right-4">
-        <div className="inline-flex flex-col items-end justify-center gap-2 p-2 relative flex-[0_0_auto] bg-white rounded-[100px] shadow-lg">
-          <div className="flex w-[171px] items-center relative flex-[0_0_auto]">
-            <div className="inline-flex items-center relative flex-[0_0_auto]">
-              <div
-                className="flex w-8 h-8 items-center justify-center gap-1 p-1 relative cursor-pointer"
-                onClick={() => setZoomLevel(Math.max(0.25, zoomLevel - 0.25))}
-              >
-                {zoomTools[0].icon}
-              </div>
+      <TooltipProvider>
+        <div className="inline-flex items-center gap-2 absolute top-4 right-4">
+          <div className="inline-flex flex-col items-end justify-center gap-2 p-2 relative flex-[0_0_auto] bg-white rounded-[100px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]">
+            <div className="flex w-[171px] items-center relative flex-[0_0_auto]">
+              <div className="inline-flex items-center relative flex-[0_0_auto]">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="flex w-8 h-8 hover:bg-gray-100 rounded-full items-center justify-center gap-1 p-1 relative cursor-pointer"
+                      onClick={() => setZoomLevel(Math.max(0.25, zoomLevel - 0.25))}
+                    >
+                      {zoomTools[0].icon}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Zoom Out</p>
+                  </TooltipContent>
+                </Tooltip>
 
-              <div className="inline-flex h-8 items-center px-1.5 py-2 relative flex-[0_0_auto] rounded-[100px]">
-                <div className="relative w-fit font-medium text-neutral-950 text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
-                  {Math.round(zoomLevel * 100)}%
+                <div className="inline-flex hover:bg-gray-100 rounded-[10px] h-8 items-center px-1.5 py-2 relative flex-[0_0_auto]">
+                  <div className="relative w-fit font-medium text-neutral-950 text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
+                    {Math.round(zoomLevel * 100)}%
+                  </div>
                 </div>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="flex w-8 h-8 items-center hover:bg-gray-100 rounded-full justify-center gap-1 p-1 relative cursor-pointer"
+                      onClick={() => setZoomLevel(Math.min(2, zoomLevel + 0.25))}
+                    >
+                      {zoomTools[1].icon}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Zoom In</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
-              <div
-                className="flex w-8 h-8 items-center justify-center gap-1 p-1 relative cursor-pointer"
-                onClick={() => setZoomLevel(Math.min(2, zoomLevel + 0.25))}
-              >
-                {zoomTools[1].icon}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className="flex w-8 h-8 hover:bg-gray-100 rounded-full items-center justify-center gap-1 p-1 relative cursor-pointer"
+                    onClick={() => { /* TODO: Implement Layout cycle logic if needed */ }}
+                  >
+                    {zoomTools[2].icon}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Layout</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className="flex w-8 h-8 hover:bg-gray-100 rounded-full items-center justify-center gap-1 p-1 relative cursor-pointer"
+                    onClick={onFitToScreen}
+                  >
+                    {zoomTools[3].icon}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Fit to Screen</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="inline-flex flex-col items-end justify-center gap-2 p-2 relative flex-[0_0_auto] bg-white rounded-[100px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]">
+            <div className="inline-flex items-center gap-2 relative flex-[0_0_auto]">
+              <Button className="inline-flex h-8 items-center px-3 py-2 relative flex-[0_0_auto] bg-[#0281f2] rounded-[100px] hover:bg-[#0281f2]/90">
+                <span className="relative w-fit font-semibold text-white text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
+                  Share
+                </span>
+              </Button>
+
+              <div className="relative w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center ease-in-out hover:scale-105 cursor-pointer group">
+                <span className="text-xs text-gray-600 font-medium group-hover:text-gray-800">DV</span>
               </div>
-            </div>
-
-            <div className="flex w-8 h-8 items-center justify-center gap-1 p-1 relative cursor-pointer">
-              {zoomTools[2].icon}
-            </div>
-
-            <div className="flex w-8 h-8 items-center justify-center gap-1 p-1 relative cursor-pointer">
-              {zoomTools[3].icon}
             </div>
           </div>
         </div>
-
-        <div className="inline-flex flex-col items-end justify-center gap-2 p-2 relative flex-[0_0_auto] bg-white rounded-[100px] shadow-lg">
-          <div className="inline-flex items-center gap-2 relative flex-[0_0_auto]">
-            <Button className="inline-flex h-8 items-center px-3 py-2 relative flex-[0_0_auto] bg-[#0281f2] rounded-[100px] hover:bg-[#0281f2]/90">
-              <span className="relative w-fit font-semibold text-white text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
-                Share
-              </span>
-            </Button>
-
-            <div className="relative w-8 h-8 rounded-[100px] bg-gray-200 flex items-center justify-center">
-              <span className="text-sm">JD</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      </TooltipProvider>
       <CanvasToolbar /> {/* CanvasToolbar component */}
     </div>
-  )
+  );
 }

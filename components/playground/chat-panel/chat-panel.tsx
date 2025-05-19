@@ -18,31 +18,30 @@ export function ChatPanel() {
   }, [messages])
 
   return (
-    <div className="flex flex-col bg-white p-1 h-full">
+    <div className="flex flex-col bg-transparent bg-white py-0.5 px-1 h-full">
       {/* Header */}
-      <div className="flex flex-col items-start gap-1 w-full pb-3 border-b">
+      <div className="flex flex-col items-start gap-1 w-full">
         <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <div className="w-6 h-6 bg-brand-purple rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-medium">P</span>
+              <img src="/popmint_logo.svg" alt="Popmint Logo" className="w-5 h-5" />
             </div>
-            <div className="font-semibold text-zinc-950 text-lg">Popmint</div>
+            <div className="font-semibold text-zinc-950 text-md">Popmint</div>
           </div>
         </div>
 
-        <div className="flex items-center px-2 py-0 w-full">
+        <div className="flex items-center px-1 py-2 w-full">
           <div className="flex h-6 items-center gap-1 flex-1">
-            <div className="font-medium text-[#000000e6] text-sm">the-whole-truth-ad</div>
+            <div className="font-medium text-neutral-800 text-sm">the-whole-truth-ad</div>
           </div>
-
-          <div className="font-medium text-[#00000080] text-xs tracking-[0.06px]">Auto-saved</div>
+          <div className="font-regular text-neutral-400 text-xs tracking-[0.06px]">Auto-saved</div>
         </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full px-3 py-4">
-          <div className="flex flex-col gap-6">
+        <ScrollArea className="h-full rounded-[10px] px-2">
+          <div className="flex flex-col gap-2">
             {messages.map((message) => (
               <MessageBubble key={message.id} message={message} />
             ))}
@@ -56,7 +55,6 @@ export function ChatPanel() {
 
             <div ref={messagesEndRef} />
           </div>
-          <Separator className="w-full h-px my-4" />
         </ScrollArea>
       </div>
 

@@ -10,9 +10,11 @@ interface KonvaTextProps {
   object: KonvaObject
   isSelected: boolean
   onSelect: (e: any) => void
+  id?: string
+  isMultiSelected?: boolean
 }
 
-export function KonvaText({ object, isSelected, onSelect }: KonvaTextProps) {
+export function KonvaText({ object, isSelected, onSelect, id, isMultiSelected }: KonvaTextProps) {
   const { updateObject } = useCanvasStore()
   const textRef = useRef<any>(null)
   const transformerRef = useRef<any>(null)
@@ -25,7 +27,7 @@ export function KonvaText({ object, isSelected, onSelect }: KonvaTextProps) {
   }, [object.text])
 
   useEffect(() => {
-    if (isSelected && transformerRef.current && textRef.current) {
+    if (isSelected && !isMultiSelected && transformerRef.current && textRef.current) {
       try {
         transformerRef.current.nodes([textRef.current])
         transformerRef.current.getLayer()?.batchDraw()
@@ -33,7 +35,7 @@ export function KonvaText({ object, isSelected, onSelect }: KonvaTextProps) {
         console.error("Error updating text transformer:", error)
       }
     }
-  }, [isSelected])
+  }, [isSelected, isMultiSelected])
 
   const handleDblClick = () => {
     if (!textRef.current) return
@@ -96,7 +98,7 @@ export function KonvaText({ object, isSelected, onSelect }: KonvaTextProps) {
         fontSize={object.fontSize || 16}
         fontFamily={object.fontFamily || "Arial"}
         fill={object.fill || "#000000"}
-        draggable={object.draggable !== false}
+        draggable={!isMultiSelected && (object.draggable !== false)}
         onClick={onSelect}
         onTap={onSelect}
         onDblClick={handleDblClick}
@@ -108,20 +110,8 @@ export function KonvaText({ object, isSelected, onSelect }: KonvaTextProps) {
           })
         }}
         onTransformEnd={handleTransformEnd}
+        id={id || object.id}
       />
-      {isSelected && (
-        <Transformer
-          ref={transformerRef}
-          enabledAnchors={["middle-left", "middle-right"]}
-          boundBoxFunc={(oldBox, newBox) => {
-            // Limit minimum size
-            if (newBox.width < 5 || newBox.height < 5) {
-              return oldBox
-            }
-            return newBox
-          }}
-        />
-      )}
       {isEditing && (
         <div
           style={{

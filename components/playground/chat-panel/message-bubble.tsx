@@ -11,19 +11,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} gap-2 w-full`}>
       {!isUser && (
-        <div className="flex items-center gap-2">
-          {message.type === "agentProgress" && <Heart className="w-4 h-4 text-red-500" />}
+        <div className="flex items-center gap-1">
+          {message.type === "agentProgress"}
+          <div className="w-6 h-6 bg-brand-purple rounded-full flex items-center justify-center">
+              <img src="/popmint_logo.svg" alt="Popmint Logo" className="w-4 h-4" />
+            </div>
           <div className="font-medium text-black text-sm">Popmint</div>
-          <div className="font-normal text-[#000000bf] text-sm">Just now</div>
+          <div className="font-normal text-neutral-400 text-xs">Just now</div>
         </div>
       )}
 
       {isUser ? (
-        <div className="flex items-center justify-center gap-2 p-2.5 w-full bg-neutral-50 rounded-[10px]">
-          <div className="font-medium text-neutral-950 text-sm">{message.content}</div>
+        <div className="flex items-end justify-end gap-2 px-4 py-2 w-full bg-neutral-100 rounded-[10px]">
+          <div className="font-medium text-neutral-800 text-sm">{message.content}</div>
         </div>
       ) : (
-        <div className="font-medium text-[#181818cc] text-sm whitespace-pre-line">{message.content}</div>
+        <div className="font-medium px-4 py-2 rounded-[10px] bg-linear-to-b from-blue-50 to-white-50 text-neutral-800 text-sm whitespace-pre-line">{message.content}</div>
       )}
 
       {message.imageUrls && message.imageUrls.length > 0 && (
