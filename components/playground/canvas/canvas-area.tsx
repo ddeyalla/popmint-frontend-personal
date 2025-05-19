@@ -220,78 +220,68 @@ export function CanvasArea() {
   ]
 
   return (
-    <div className="relative h-screen w-full">
+    <div className="relative w-full h-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] bg-white rounded-[10px] border border-gray-200 p-6 flex items-center justify-center">
       {/* Outer background is now plain white */}
       <div
-        className="absolute inset-0 flex items-center justify-center px-2 py-2"
+        className="w-full h-full max-w-[1131px] max-h-[100%] overflow-hidden transition-all duration-200 ease-in-out flex items-center justify-center"
         style={{ overflow: "hidden" }}
         ref={containerRef}
       >
-        <div
-          className="bg-[#FAFAFA] rounded-xl shadow-lg border border-gray-200 border-opacity-30 w-full h-full max-w-[1131px] max-h-[100%] overflow-hidden transition-all duration-200 ease-in-out"
-          style={{
-            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)",
-            backgroundImage:
-              "url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')",
-            backgroundRepeat: 'repeat',
-          }}
-        >
-          {containerRef.current && (
-            <Stage
-              ref={stageRef}
-              width={stageSize.width}
-              height={stageSize.height}
-              x={stageOffset.x}
-              y={stageOffset.y}
-              onClick={handleStageClick}
-              onTap={handleStageClick}
-              scale={{ x: zoomLevel, y: zoomLevel }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-            >
-              <Layer>
-                {objects.map((obj) => {
-                  if (obj.type === "image") {
-                    return (
-                      <KonvaImage
-                        key={obj.id}
-                        object={obj}
-                        isSelected={selectedObjectIds.includes(obj.id)}
-                        onSelect={(e: any) => {
-                          if (e.evt.shiftKey) {
-                            selectObject(obj.id, true)
-                          } else {
-                            selectObject(obj.id)
-                          }
-                        }}
-                      />
-                    )
-                  } else if (obj.type === "text") {
-                    return (
-                      <KonvaText
-                        key={obj.id}
-                        object={obj}
-                        isSelected={selectedObjectIds.includes(obj.id)}
-                        onSelect={(e: any) => {
-                          if (e.evt.shiftKey) {
-                            selectObject(obj.id, true)
-                          } else {
-                            selectObject(obj.id)
-                          }
-                        }}
-                      />
-                    )
-                  }
-                  return null
-                })}
-              </Layer>
-            </Stage>
-          )}
-        </div>
+        {containerRef.current && (
+          <Stage
+            ref={stageRef}
+            width={stageSize.width}
+            height={stageSize.height}
+            x={stageOffset.x}
+            y={stageOffset.y}
+            onClick={handleStageClick}
+            onTap={handleStageClick}
+            scale={{ x: zoomLevel, y: zoomLevel }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <Layer>
+              {objects.map((obj) => {
+                if (obj.type === "image") {
+                  return (
+                    <KonvaImage
+                      key={obj.id}
+                      object={obj}
+                      isSelected={selectedObjectIds.includes(obj.id)}
+                      onSelect={(e: any) => {
+                        if (e.evt.shiftKey) {
+                          selectObject(obj.id, true)
+                        } else {
+                          selectObject(obj.id)
+                        }
+                      }}
+                    />
+                  )
+                } else if (obj.type === "text") {
+                  return (
+                    <KonvaText
+                      key={obj.id}
+                      object={obj}
+                      isSelected={selectedObjectIds.includes(obj.id)}
+                      onSelect={(e: any) => {
+                        if (e.evt.shiftKey) {
+                          selectObject(obj.id, true)
+                        } else {
+                          selectObject(obj.id)
+                        }
+                      }}
+                    />
+                  )
+                }
+                return null
+              })}
+            </Layer>
+          </Stage>
+        )}
       </div>
       {/* Zoom controls and share button */}
       <div className="inline-flex items-center gap-2 absolute top-4 right-4">
@@ -305,8 +295,8 @@ export function CanvasArea() {
                 {zoomTools[0].icon}
               </div>
 
-              <div className="inline-flex h-8 items-center px-1.5 py-[100px] relative flex-[0_0_auto] rounded-[100px]">
-                <div className="relative w-fit mt-[-92.00px] mb-[-92.00px] font-medium text-neutral-950 text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
+              <div className="inline-flex h-8 items-center px-1.5 py-2 relative flex-[0_0_auto] rounded-[100px]">
+                <div className="relative w-fit font-medium text-neutral-950 text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
                   {Math.round(zoomLevel * 100)}%
                 </div>
               </div>
@@ -331,8 +321,8 @@ export function CanvasArea() {
 
         <div className="inline-flex flex-col items-end justify-center gap-2 p-2 relative flex-[0_0_auto] bg-white rounded-[100px] shadow-lg">
           <div className="inline-flex items-center gap-2 relative flex-[0_0_auto]">
-            <Button className="inline-flex h-8 items-center px-3 py-[100px] relative flex-[0_0_auto] bg-[#0281f2] rounded-[100px] hover:bg-[#0281f2]/90">
-              <span className="relative w-fit mt-[-92.00px] mb-[-92.00px] font-semibold text-white text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
+            <Button className="inline-flex h-8 items-center px-3 py-2 relative flex-[0_0_auto] bg-[#0281f2] rounded-[100px] hover:bg-[#0281f2]/90">
+              <span className="relative w-fit font-semibold text-white text-xs text-center tracking-[0.06px] leading-4 whitespace-nowrap">
                 Share
               </span>
             </Button>

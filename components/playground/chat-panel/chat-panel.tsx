@@ -18,9 +18,9 @@ export function ChatPanel() {
   }, [messages])
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col bg-white p-1 h-full">
       {/* Header */}
-      <div className="flex flex-col items-start gap-1 w-full p-3 border-b">
+      <div className="flex flex-col items-start gap-1 w-full pb-3 border-b">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-brand-purple rounded-full flex items-center justify-center">

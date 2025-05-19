@@ -24,6 +24,8 @@ type CanvasState = {
   selectedObjectIds: string[]
   zoomLevel: number
   stageOffset: { x: number; y: number }
+  toolMode: 'move' | 'hand' | 'scale'
+  setToolMode: (mode: 'move' | 'hand' | 'scale') => void
   setStageOffset: (offset: { x: number; y: number }) => void
   updateStageOffset: (delta: { x: number; y: number }) => void
   addObject: (object: Omit<KonvaObject, "id">) => void
@@ -49,6 +51,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   selectedObjectIds: [],
   zoomLevel: 1,
   stageOffset: { x: 0, y: 0 },
+  toolMode: 'move',
+  setToolMode: (mode) => set({ toolMode: mode }),
 
   setStageOffset: (offset) => set({ stageOffset: offset }),
   updateStageOffset: (delta) =>

@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { StagewiseToolbar } from "@stagewise/toolbar-next"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -19,6 +20,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+        {process.env.NODE_ENV === "development" && (
+          <StagewiseToolbar config={{ plugins: [] }} />
+        )}
         <ThemeProvider attribute="class" defaultTheme="light">
           {children}
         </ThemeProvider>
