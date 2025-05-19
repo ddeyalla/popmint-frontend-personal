@@ -84,13 +84,15 @@ export function CanvasToolbar() {
           processFile(idx + 1)
           return
         }
-        if (typeof ev.target.result === "string") {
+        if (ev.target && typeof ev.target.result === "string") {
           // Load image to get width/height if needed
           const img = new window.Image()
           img.onload = () => {
             const x = 20 + (col * (180 + IMAGE_SPACING))
             const y = 20 + (row * IMAGE_ROW_HEIGHT)
-            addImage(ev.target.result as string, x, y)
+            // Store the result in a variable to avoid TypeScript null check issues
+            const result = ev.target?.result as string
+            addImage(result, x, y)
             col++
             if (col >= IMAGES_PER_ROW) {
               col = 0
