@@ -11,6 +11,16 @@ import { ChevronDown, Copy, Trash } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { useSessionStore } from "@/store/sessionStore"
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from "@/components/ui/dialog"
 
 // Simple Modal component that doesn't rely on radix-ui
 const SimpleModal = ({ 
@@ -51,6 +61,8 @@ export function ProjectTitleDropdown() {
   const router = useRouter()
   const { projectName, setProjectName } = useSessionStore()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState(projectName)
 
   const handleDuplicate = () => {
     // Generate a new session ID for the duplicate
@@ -76,6 +88,20 @@ export function ProjectTitleDropdown() {
     router.push("/")
   }
 
+  const handleRename = () => {
+    setRenameValue(projectName)
+    setIsRenameDialogOpen(true)
+  }
+
+  const saveRename = () => {
+    const trimmed = renameValue.trim()
+    if (trimmed) {
+      setProjectName(trimmed)
+      localStorage.setItem("popmint-project-name", trimmed)
+      setIsRenameDialogOpen(false)
+    }
+  }
+
   return (
     <>
       <DropdownMenu>
@@ -86,6 +112,9 @@ export function ProjectTitleDropdown() {
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuItem onClick={handleRename} className="cursor-pointer">
+            <span>Rename</span>
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleDuplicate} className="cursor-pointer">
             <Copy className="mr-2 h-4 w-4" />
             <span>Duplicate</span>
@@ -96,6 +125,35 @@ export function ProjectTitleDropdown() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Rename Modal */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Project</DialogTitle>
+            <DialogDescription>Enter a new name for your project.</DialogDescription>
+          </DialogHeader>
+          <input
+            autoFocus
+            className="w-full border rounded px-3 py-2 mt-2 text-base bg-background text-foreground outline-none focus:ring-2 focus:ring-primary"
+            value={renameValue}
+            onChange={e => setRenameValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') saveRename()
+            }}
+            maxLength={64}
+            placeholder="Project name"
+          />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={saveRename} disabled={!renameValue.trim()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Use the SimpleModal instead of Dialog */}
       <SimpleModal
