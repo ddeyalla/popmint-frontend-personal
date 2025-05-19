@@ -57,6 +57,9 @@ export function CanvasArea() {
     startY: number;
   } | null>(null)
   const [isAltKeyPressed, setIsAltKeyPressed] = useState(false)
+  // Pinch-to-zoom gesture state
+  const lastPinchDistance = useRef<number | null>(null);
+  const lastPinchMidpoint = useRef<{ x: number; y: number } | null>(null);
 
   // Handle stage resize with ResizeObserver for more accurate size tracking
   useEffect(() => {
@@ -385,36 +388,78 @@ export function CanvasArea() {
     }
   };
 
+  // Enhanced touch move for pinch-to-zoom
   const handleTouchMove = (e: KonvaEventObject<TouchEvent>) => {
-    if (!touchPan || !panStart.current || !lastPointer.current || !(e.evt.touches && e.evt.touches.length === 2)) return
+    if (!containerRef.current) return;
     const stage = e.target.getStage();
     if (!stage) return;
 
-    const touch1 = e.evt.touches[0]
-    const touch2 = e.evt.touches[1]
-    const mid = {
-      x: (touch1.clientX + touch2.clientX) / 2,
-      y: (touch1.clientY + touch2.clientY) / 2,
-    }
-    const delta = {
-      x: mid.x - lastPointer.current.x,
-      y: mid.y - lastPointer.current.y,
-    }
-    // For touch, delta needs to be divided by zoom level if stage drag does not account for it.
-    // However, updateStageOffset should ideally take absolute deltas.
-    // Let's assume updateStageOffset handles this correctly or stage.dragBoundFunc does.
-    // For simplicity, if updateStageOffset expects screen-space delta, this is fine.
-    // If it expects stage-space delta, then:
-    // updateStageOffset({ x: delta.x / zoomLevel, y: delta.y / zoomLevel });
-    updateStageOffset(delta) // Assuming this takes screen-space delta
-    lastPointer.current = mid
-  }
+    // Pinch-to-zoom: two fingers
+    if (e.evt.touches && e.evt.touches.length === 2) {
+      const touch1 = e.evt.touches[0];
+      const touch2 = e.evt.touches[1];
+      const dx = touch2.clientX - touch1.clientX;
+      const dy = touch2.clientY - touch1.clientY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const midpoint = {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2,
+      };
 
+      if (lastPinchDistance.current !== null) {
+        const delta = distance - lastPinchDistance.current;
+        if (Math.abs(delta) > 2) { // Only zoom if movement is significant
+          // Calculate new zoom level
+          let newZoom = zoomLevel * (1 + delta / 300); // Sensitivity factor
+          newZoom = Math.max(0.25, Math.min(2, newZoom));
+
+          // Calculate zoom center in stage coordinates
+          const stageBox = stage.container().getBoundingClientRect();
+          const pointer = {
+            x: (midpoint.x - stageBox.left - stageOffset.x) / zoomLevel,
+            y: (midpoint.y - stageBox.top - stageOffset.y) / zoomLevel,
+          };
+
+          // Adjust offset so zoom is centered on pinch midpoint
+          const newOffset = {
+            x: midpoint.x - stageBox.left - pointer.x * newZoom,
+            y: midpoint.y - stageBox.top - pointer.y * newZoom,
+          };
+
+          setZoomLevel(newZoom);
+          setStageOffset(newOffset);
+        }
+      }
+      lastPinchDistance.current = distance;
+      lastPinchMidpoint.current = midpoint;
+      return; // Don't pan if pinching
+    }
+
+    // Existing pan logic for two-finger pan
+    if (touchPan && panStart.current && lastPointer.current && e.evt.touches && e.evt.touches.length === 2) {
+      const touch1 = e.evt.touches[0];
+      const touch2 = e.evt.touches[1];
+      const mid = {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2,
+      };
+      const delta = {
+        x: mid.x - lastPointer.current.x,
+        y: mid.y - lastPointer.current.y,
+      };
+      updateStageOffset(delta);
+      lastPointer.current = mid;
+    }
+  };
+
+  // Reset pinch state on touch end
   const handleTouchEnd = (e: KonvaEventObject<TouchEvent>) => {
-    setTouchPan(false)
-    panStart.current = null
-    lastPointer.current = null
-  }
+    setTouchPan(false);
+    panStart.current = null;
+    lastPointer.current = null;
+    lastPinchDistance.current = null;
+    lastPinchMidpoint.current = null;
+  };
 
   /**
    * Handle selection with Option/Alt key for duplication
@@ -573,6 +618,47 @@ export function CanvasArea() {
     setStageOffset({ x: offsetX, y: offsetY })
   }
 
+  // Add new handler for wheel zoom (mouse wheel + Ctrl)
+  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
+    // Only trigger zoom if Ctrl key is pressed (similar to Figma)
+    if (!e.evt.ctrlKey) return;
+    
+    e.evt.preventDefault();
+    
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    const oldScale = zoomLevel;
+    
+    // Calculate new scale with smooth factor (1.001^-deltaY provides good sensitivity)
+    // deltaY is negative when scrolling up/pinching out, positive when scrolling down/pinching in
+    const scaleBy = Math.pow(1.008, -e.evt.deltaY);
+    let newScale = oldScale * scaleBy;
+    
+    // Clamp zoom between 0.1 (10%) and 10 (1000%)
+    newScale = Math.max(0.1, Math.min(10, newScale));
+    
+    // Get pointer position relative to stage
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    
+    // Get mouse/touch point in the current scale
+    const mousePointTo = {
+      x: (pointer.x - stageOffset.x) / oldScale,
+      y: (pointer.y - stageOffset.y) / oldScale,
+    };
+    
+    // Calculate new position to keep the point under cursor in the same place
+    const newPos = {
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    };
+    
+    // Update zoom level and offset
+    setZoomLevel(newScale);
+    setStageOffset(newPos);
+  };
+
   return (
     <div
       className={cn(
@@ -605,6 +691,7 @@ export function CanvasArea() {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onWheel={handleWheel} // Add wheel event handler for Ctrl+wheel zoom
             draggable={false} // We handle dragging manually based on tool mode
           >
             <Layer>
