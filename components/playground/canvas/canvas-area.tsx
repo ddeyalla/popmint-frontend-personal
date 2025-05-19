@@ -12,6 +12,7 @@ import { ZoomIn, ZoomOut, Maximize, Layout } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CanvasToolbar } from "./canvas-toolbar" // Import CanvasToolbar
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 export function CanvasArea() {
   const {
@@ -31,6 +32,7 @@ export function CanvasArea() {
     updateObject,
     toolMode,
     duplicateObject,
+    isSidebarCollapsed,
   } = useCanvasStore()
   const messages = useChatStore((state) => state.messages)
   const stageRef = useRef<Konva.Stage>(null)
@@ -542,12 +544,20 @@ export function CanvasArea() {
   }
 
   return (
-    <div className="relative w-full h-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] bg-white rounded-[10px] flex items-center justify-center">
+    <div
+      className={cn(
+        "relative w-full h-full bg-white",
+        isSidebarCollapsed ? "" : "rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]"
+      )}
+    >
       {/* Dot grid overlay */}
       <div className="pointer-events-none absolute rounded-[10px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]" />
       {/* Outer background is now plain white */}
       <div
-        className="w-full h-full max-w-[1131px] max-h-[100%] overflow-hidden transition-all duration-200 ease-in-out flex items-center justify-center"
+        className={cn(
+          "w-full h-full overflow-hidden transition-all duration-200 ease-in-out",
+          isSidebarCollapsed ? "" : "max-w-[1131px] mx-auto flex items-center justify-center"
+        )}
         style={{ overflow: "hidden" }}
         ref={containerRef}
       >
