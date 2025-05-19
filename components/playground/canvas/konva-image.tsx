@@ -10,9 +10,10 @@ interface KonvaImageProps {
   onSelect: (e: any) => void
   id?: string
   isMultiSelected?: boolean
+  onTransformEnd?: (e: any) => void
 }
 
-export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected }: KonvaImageProps) {
+export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, onTransformEnd }: KonvaImageProps) {
   const { updateObject } = useCanvasStore()
   const imageRef = useRef<any>(null)
   const transformerRef = useRef<any>(null)
@@ -61,7 +62,7 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected }
     }
   }, [isSelected, isMultiSelected])
 
-  const handleTransformEnd = () => {
+  const handleTransformEnd = (e: any) => {
     if (!imageRef.current) return
 
     try {
@@ -76,6 +77,9 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected }
       // Reset scale to avoid double scaling
       node.scaleX(1)
       node.scaleY(1)
+
+      // Call external handler if provided
+      onTransformEnd?.(e)
     } catch (error) {
       console.error("Error during transform end:", error)
     }

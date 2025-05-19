@@ -39,11 +39,10 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
         subType: "image_generated",
         content: "Great! Now I have fixed your ads and create 5 more variants",
         imageUrls: [
-          "/protein-powder-orange-mango.png",
-          "/protein-powder-nutrition.png",
-          "/protein-powder-sky.png",
-          "/placeholder-v07yq.png",
-          "/protein-powder-add-to-cart.png",
+          "/image-1.png",
+          "/image-2.png",
+          "/image-3.png",
+          "/image-4.png"
         ],
       });
 

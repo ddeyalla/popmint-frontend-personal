@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, Paperclip, Send } from "lucide-react";
+import { ArrowUp, Globe, ImagePlus} from "lucide-react";
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion, AnimatePresence } from "framer-motion";
@@ -76,14 +76,14 @@ export function AIInputWithSearch({
           </div>
 
           <div className="h-4 dark:bg-white/5 rounded-10px">
-            <div className="absolute left-3 bottom-3 flex items-center gap-2">
+            <div className="absolute left-2 bottom-2 flex items-center gap-2">
               <label className="cursor-pointer rounded-lg p-2 bg-black/5 dark:bg-white/5">
                 <input 
                   type="file" 
                   className="hidden" 
                   onChange={handleFileChange}
                 />
-                <Paperclip className="w-4 h-4 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors" />
+                <ImagePlus className="w-4 h-4 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors" />
               </label>
               <button
                 type="button"
@@ -144,18 +144,18 @@ export function AIInputWithSearch({
                 </AnimatePresence>
               </button>
             </div>
-            <div className="absolute right-3 bottom-3">
+            <div className="absolute rounded-full right-2 bg-blue-400 bottom-2">
               <button
                 type="button"
                 onClick={handleSubmit}
                 className={cn(
-                  "rounded-lg p-2 transition-colors",
+                  "rounded-lg bg-blue-900 p-2 transition-colors",
                   value
                     ? "bg-sky-500/15 text-sky-500"
                     : "bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white"
                 )}
               >
-                <Send className="w-4 h-4" />
+                <ArrowUp strokeWidth={3} color="white" className="w-4 h-4" />
               </button>
             </div>
           </div>

@@ -26,6 +26,7 @@ export function CanvasArea() {
     deleteObject,
     selectAllObjects,
     clearSelection,
+    toolMode,
   } = useCanvasStore()
   const messages = useChatStore((state) => state.messages)
   const stageRef = useRef<Konva.Stage>(null)
@@ -65,46 +66,62 @@ export function CanvasArea() {
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if focus is on input elements
+      if (e.target && (e.target as HTMLElement).tagName === "INPUT") return;
+
       // Cmd/Ctrl + A: select all image frames
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
-        e.preventDefault()
-        selectAllObjects()
-        return
+        e.preventDefault();
+        selectAllObjects();
+        return;
       }
-      // Cmd/Ctrl + Plus/Minus: zoom in/out
-      if ((e.metaKey || e.ctrlKey) && (e.key === "+" || e.key === "=")) {
-        e.preventDefault()
-        setZoomLevel(Math.min(2, zoomLevel + 0.25))
-        return
+
+      // Zoom shortcuts
+      if (e.metaKey || e.ctrlKey) {
+        switch (e.key) {
+          case "+":
+          case "=": // Handle both + and = keys for zoom in
+            e.preventDefault();
+            const newZoomIn = Math.min(2, zoomLevel + 0.25); // Max zoom 200%
+            if (newZoomIn !== zoomLevel) {
+              setZoomLevel(newZoomIn);
+            }
+            return;
+          case "-":
+          case "_": // Handle both - and _ keys for zoom out
+            e.preventDefault();
+            const newZoomOut = Math.max(0.25, zoomLevel - 0.25); // Min zoom 25%
+            if (newZoomOut !== zoomLevel) {
+              setZoomLevel(newZoomOut);
+            }
+            return;
+        }
       }
-      if ((e.metaKey || e.ctrlKey) && (e.key === "-" || e.key === "_")) {
-        e.preventDefault()
-        setZoomLevel(Math.max(0.25, zoomLevel - 0.25))
-        return
-      }
+
       // Delete: delete all selected
       if ((e.key === "Delete" || e.key === "Backspace") && document.activeElement === document.body) {
         if (selectedObjectIds.length > 0) {
-          deleteObject(selectedObjectIds)
+          deleteObject(selectedObjectIds);
         }
-        return
+        return;
       }
+
       // Undo/Redo (existing)
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
-        e.preventDefault()
-        useCanvasStore.getState().undo()
-        return
+        e.preventDefault();
+        useCanvasStore.getState().undo();
+        return;
       }
       if ((e.metaKey || e.ctrlKey) && ((e.shiftKey && e.key === "z") || e.key === "y")) {
-        e.preventDefault()
-        useCanvasStore.getState().redo()
-        return
+        e.preventDefault();
+        useCanvasStore.getState().redo();
+        return;
       }
-    }
+    };
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [zoomLevel, selectedObjectIds, setZoomLevel, deleteObject, selectAllObjects])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [zoomLevel, selectedObjectIds, setZoomLevel, deleteObject, selectAllObjects]);
 
   // Process image messages from chat
   useEffect(() => {
@@ -115,39 +132,51 @@ export function CanvasArea() {
 
     // Get the latest image message
     const latestMessage = imageMessages[imageMessages.length - 1]
-
     if (latestMessage && latestMessage.imageUrls) {
-      // Add images to canvas with spacing
+      // Check for existing images before adding
+      const existingUrls = new Set(objects.map(obj => obj.src))
       latestMessage.imageUrls.forEach((url, index) => {
-        const addImage = useCanvasStore.getState().addImage
-        addImage(url, 20 + index * 420, 20)
+        if (!existingUrls.has(url)) {
+          const addImage = useCanvasStore.getState().addImage
+          addImage(url, 20 + index * 420, 20)
+        }
       })
     }
-  }, [messages])
+  }, [messages, objects])
 
   // For demo purposes, add sample images if canvas is empty
   useEffect(() => {
-    if (!isInitialized && objects.length === 0) {
+    // Check if there are any chat-generated images
+    const hasChatImages = messages.some(
+      (msg) =>
+        msg.type === "agentOutput" &&
+        msg.subType === "image_generated" &&
+        Array.isArray(msg.imageUrls) &&
+        msg.imageUrls.length > 0
+    );
+    if (!isInitialized && objects.length === 0 && !hasChatImages) {
       setIsInitialized(true)
 
       // Sample product images
       const sampleImages = [
-        "/protein-powder-orange-mango.png",
-        "/protein-powder-nutrition.png",
-        "/protein-powder-sky.png",
-        "/placeholder-v07yq.png",
-        "/protein-powder-add-to-cart.png",
+        "/image-1.png",
+        "/image-2.png",
+        "/image-3.png",
+        "/image-4.png"
       ]
 
-      // Add sample images with spacing
+      // Add sample images with spacing, but only if they don't already exist
+      const existingUrls = new Set(objects.map(obj => obj.src))
       sampleImages.forEach((url, index) => {
-        setTimeout(() => {
-          const addImage = useCanvasStore.getState().addImage
-          addImage(url, 20 + index * 420, 20)
-        }, index * 100) // Stagger the additions to avoid overwhelming the renderer
+        if (!existingUrls.has(url)) {
+          setTimeout(() => {
+            const addImage = useCanvasStore.getState().addImage
+            addImage(url, 20 + index * 420, 20)
+          }, index * 100) // Stagger the additions to avoid overwhelming the renderer
+        }
       })
     }
-  }, [objects.length, isInitialized])
+  }, [objects.length, isInitialized, messages])
 
   const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
     if (e.target === e.currentTarget) {
@@ -155,76 +184,111 @@ export function CanvasArea() {
     }
   }
 
-  /**
-   * Mouse down handler for panning
-   */
+  // Add cursor style management
+  useEffect(() => {
+    if (!stageRef.current) return;
+    const stage = stageRef.current;
+    const container = stage.container();
+
+    // Set initial cursor based on tool mode
+    switch (toolMode) {
+      case 'move':
+        container.style.cursor = 'default';
+        break;
+      case 'hand':
+        container.style.cursor = 'grab';
+        break;
+      case 'scale':
+        container.style.cursor = 'nesw-resize';
+        break;
+      default:
+        container.style.cursor = 'default';
+    }
+
+    // Handle cursor changes during interactions
+    stage.on('mousedown touchstart', () => {
+      if (toolMode === 'hand') {
+        container.style.cursor = 'grabbing';
+      }
+    });
+
+    stage.on('mouseup touchend', () => {
+      if (toolMode === 'hand') {
+        container.style.cursor = 'grab';
+      }
+    });
+
+    // Cleanup
+    return () => {
+      stage.off('mousedown touchstart mouseup touchend');
+      container.style.cursor = 'default';
+    };
+  }, [toolMode]);
+
+  // Update mouse handlers based on tool mode
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
-    const stage = e.target.getStage()
-    // Only start panning if clicking background (not an object)
-    if (e.target === stage && stage) { // Added stage null check
-      setIsPanning(true)
-      panStart.current = stage.getPointerPosition() // Use Konva's pointer position
-      lastPointer.current = stage.getPointerPosition()
-      // clearSelection(); // Deselection is handled by handleStageClick
-    }
-  }
-
-  /**
-   * Mouse move handler for panning
-   */
-  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
-    if (!isPanning || !panStart.current || !lastPointer.current) return // Added null check for lastPointer
-    const stage = e.target.getStage()
+    const stage = e.target.getStage();
     if (!stage) return;
-    const pointer = stage.getPointerPosition()
-    if (!pointer) return; // pointer can be null
 
-    const delta = {
-      x: pointer.x - lastPointer.current.x,
-      y: pointer.y - lastPointer.current.y,
+    // Only handle stage clicks (not object clicks)
+    if (e.target !== stage) return;
+
+    if (toolMode === 'hand' || (toolMode === 'move' && e.evt.button === 1)) { // Middle mouse button for move
+      setIsPanning(true);
+      stage.container().style.cursor = 'grabbing';
+      panStart.current = stage.getPointerPosition();
+      lastPointer.current = stage.getPointerPosition();
     }
-    updateStageOffset(delta)
-    lastPointer.current = pointer
-  }
+  };
 
-  /**
-   * Mouse up handler to stop panning
-   */
+  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    if ((toolMode === 'hand' || (toolMode === 'move' && e.evt.button === 1)) && isPanning && panStart.current && lastPointer.current) {
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      const delta = {
+        x: pointer.x - lastPointer.current.x,
+        y: pointer.y - lastPointer.current.y,
+      };
+      updateStageOffset(delta);
+      lastPointer.current = pointer;
+    }
+  };
+
   const handleMouseUp = (e: KonvaEventObject<MouseEvent>) => {
-    setIsPanning(false)
-    panStart.current = null
-    lastPointer.current = null
-  }
+    const stage = e.target.getStage();
+    if (!stage) return;
 
-  /**
-   * Touch start handler for two-finger panning
-   */
+    if (toolMode === 'hand') {
+      stage.container().style.cursor = 'grab';
+    }
+    setIsPanning(false);
+    panStart.current = null;
+    lastPointer.current = null;
+  };
+
+  // Update touch handlers to respect tool mode
   const handleTouchStart = (e: KonvaEventObject<TouchEvent>) => {
     const stage = e.target.getStage();
     if (!stage) return;
 
-    if (e.evt.touches && e.evt.touches.length === 2) {
-      setTouchPan(true)
-      const touch1 = e.evt.touches[0]
-      const touch2 = e.evt.touches[1]
+    if (toolMode === 'hand' || e.evt.touches.length === 2) {
+      setTouchPan(true);
+      const touch1 = e.evt.touches[0];
+      const touch2 = e.evt.touches.length > 1 ? e.evt.touches[1] : touch1;
       const mid = {
         x: (touch1.clientX + touch2.clientX) / 2,
         y: (touch1.clientY + touch2.clientY) / 2,
-      }
-      panStart.current = mid // Store relative to screen, will be transformed by stage scale/offset internally
-      lastPointer.current = { ...mid }
-      // clearSelection();
-    } else if (e.evt.touches && e.evt.touches.length === 1) {
-        // Handle single touch as potential drag start for objects if not handled by transformer
-        // This part would be more relevant if individual items have their own drag handlers.
-        // For now, Transformer handles drags for selected items.
-        // If clicking on background, stage onMouseDown will handle it.
+      };
+      panStart.current = mid;
+      lastPointer.current = { ...mid };
+      stage.container().style.cursor = 'grabbing';
     }
-  }
+  };
 
-  /**
-   * Touch move handler for two-finger panning
-   */
   const handleTouchMove = (e: KonvaEventObject<TouchEvent>) => {
     if (!touchPan || !panStart.current || !lastPointer.current || !(e.evt.touches && e.evt.touches.length === 2)) return
     const stage = e.target.getStage();
@@ -250,9 +314,6 @@ export function CanvasArea() {
     lastPointer.current = mid
   }
 
-  /**
-   * Touch end handler to stop panning
-   */
   const handleTouchEnd = (e: KonvaEventObject<TouchEvent>) => {
     setTouchPan(false)
     panStart.current = null
@@ -402,20 +463,13 @@ export function CanvasArea() {
             onClick={handleStageClick}
             onTap={handleStageClick}
             scale={{ x: zoomLevel, y: zoomLevel }}
-            onMouseDown={(e: KonvaEventObject<MouseEvent>) => {
-                // Priority to group drag/transform, then panning
-                // Event bubbling should be stopped by interactive elements (group, transformer)
-                // If event reaches here and is on the stage itself, then pan or deselect.
-                if (e.target === e.currentTarget) { // e.currentTarget is the Stage
-                    handleMouseDown(e);      // For panning
-                    // handleStageClick(e) is now called by onClick/onTap for deselection
-                }
-            }}
-            onMouseMove={(e: KonvaEventObject<MouseEvent>) => handleMouseMove(e)} // Panning
-            onMouseUp={(e: KonvaEventObject<MouseEvent>) => handleMouseUp(e)} // Panning
-            onTouchStart={(e: KonvaEventObject<TouchEvent>) => handleTouchStart(e)} // Panning
-            onTouchMove={(e: KonvaEventObject<TouchEvent>) => handleTouchMove(e)} // Panning
-            onTouchEnd={(e: KonvaEventObject<TouchEvent>) => handleTouchEnd(e)} // Panning
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            draggable={false} // We handle dragging manually based on tool mode
           >
             <Layer>
               {/* Multi-select: render unselected objects, and selected objects inside a draggable group */}

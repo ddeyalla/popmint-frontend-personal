@@ -12,9 +12,10 @@ interface KonvaTextProps {
   onSelect: (e: any) => void
   id?: string
   isMultiSelected?: boolean
+  onTransformEnd?: (e: any) => void
 }
 
-export function KonvaText({ object, isSelected, onSelect, id, isMultiSelected }: KonvaTextProps) {
+export function KonvaText({ object, isSelected, onSelect, id, isMultiSelected, onTransformEnd }: KonvaTextProps) {
   const { updateObject } = useCanvasStore()
   const textRef = useRef<any>(null)
   const transformerRef = useRef<any>(null)
@@ -38,38 +39,110 @@ export function KonvaText({ object, isSelected, onSelect, id, isMultiSelected }:
   }, [isSelected, isMultiSelected])
 
   const handleDblClick = () => {
-    if (!textRef.current) return
+    if (!textRef.current) return;
 
-    try {
-      const position = textRef.current.getAbsolutePosition() || { x: object.x || 0, y: object.y || 0 }
-      setTextPosition(position)
-      setIsEditing(true)
-    } catch (error) {
-      console.error("Error handling double click:", error)
+    const stage = textRef.current.getStage();
+    if (!stage) return;
+
+    // Hide the text node
+    textRef.current.hide();
+    
+    // Create a textarea element
+    const textPosition = textRef.current.absolutePosition();
+    const stageBox = stage.container().getBoundingClientRect();
+    const areaPosition = {
+      x: stageBox.left + textPosition.x,
+      y: stageBox.top + textPosition.y
+    };
+
+    // Create textarea over canvas
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+
+    textarea.value = textValue;
+    textarea.style.position = 'absolute';
+    textarea.style.top = areaPosition.y + 'px';
+    textarea.style.left = areaPosition.x + 'px';
+    textarea.style.width = textRef.current.width() * stage.scaleX() + 'px';
+    textarea.style.height = textRef.current.height() * stage.scaleY() + 'px';
+    textarea.style.fontSize = textRef.current.fontSize() * stage.scaleX() + 'px';
+    textarea.style.border = 'none';
+    textarea.style.padding = '0px';
+    textarea.style.margin = '0px';
+    textarea.style.overflow = 'hidden';
+    textarea.style.background = 'none';
+    textarea.style.outline = 'none';
+    textarea.style.resize = 'none';
+    textarea.style.lineHeight = textRef.current.lineHeight();
+    textarea.style.fontFamily = textRef.current.fontFamily();
+    textarea.style.transformOrigin = 'left top';
+    textarea.style.textAlign = textRef.current.align();
+    textarea.style.color = textRef.current.fill();
+    
+    let transform = '';
+    const px = 0;
+    const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+    const rotation = textRef.current.rotation();
+    if (rotation) {
+      transform += 'rotateZ(' + rotation + 'deg)';
     }
-  }
-
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setTextValue(e.target.value)
-  }
-
-  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      finishEditing()
+    let scaleX = textRef.current.scaleX();
+    let scaleY = textRef.current.scaleY();
+    if (scaleX !== 1 || scaleY !== 1) {
+      transform += ' scale(' + scaleX + ',' + scaleY + ')';
     }
-    if (e.key === "Escape") {
-      setTextValue(object.text || "")
-      finishEditing()
+    textarea.style.transform = transform;
+    textarea.style.transformOrigin = 'left top';
+    textarea.focus();
+
+    function removeTextarea() {
+      textarea.parentNode?.removeChild(textarea);
+      window.removeEventListener('click', handleOutsideClick);
+      textRef.current?.show();
+      stage.batchDraw();
     }
-  }
 
-  const finishEditing = () => {
-    setIsEditing(false)
-    updateObject(object.id, { text: textValue })
-  }
+    function handleOutsideClick(e: MouseEvent) {
+      if (e.target !== textarea) {
+        finishEditing();
+      }
+    }
 
-  const handleTransformEnd = () => {
+    setTimeout(() => {
+      window.addEventListener('click', handleOutsideClick);
+    });
+
+    textarea.addEventListener('keydown', function (e) {
+      // hide on enter but not on shift + enter
+      if (e.keyCode === 13 && !e.shiftKey) {
+        e.preventDefault();
+        finishEditing();
+      }
+      // on esc
+      if (e.keyCode === 27) {
+        removeTextarea();
+      }
+    });
+
+    textarea.addEventListener('input', function () {
+      const scale = textRef.current?.getAbsoluteScale().x || 1;
+      // For some reason, in Firefox textarea width is limited
+      const width = isFirefox ? textarea.offsetWidth : textarea.scrollWidth;
+      const height = textarea.scrollHeight;
+      textarea.style.width = width + 'px';
+      textarea.style.height = height + 'px';
+      setTextValue(textarea.value);
+    });
+
+    function finishEditing() {
+      const newText = textarea.value;
+      removeTextarea();
+      setTextValue(newText);
+      updateObject(object.id, { text: newText });
+    }
+  };
+
+  const handleTransformEnd = (e: any) => {
     if (!textRef.current) return
 
     try {
@@ -83,67 +156,36 @@ export function KonvaText({ object, isSelected, onSelect, id, isMultiSelected }:
       // Reset scale to avoid double scaling
       node.scaleX(1)
       node.scaleY(1)
+
+      // Call external handler if provided
+      onTransformEnd?.(e)
     } catch (error) {
       console.error("Error during text transform end:", error)
     }
   }
 
   return (
-    <>
-      <Text
-        ref={textRef}
-        x={object.x || 0}
-        y={object.y || 0}
-        text={textValue}
-        fontSize={object.fontSize || 16}
-        fontFamily={object.fontFamily || "Arial"}
-        fill={object.fill || "#000000"}
-        draggable={!isMultiSelected && (object.draggable !== false)}
-        onClick={onSelect}
-        onTap={onSelect}
-        onDblClick={handleDblClick}
-        onDblTap={handleDblClick}
-        onDragEnd={(e) => {
-          updateObject(object.id, {
-            x: e.target.x(),
-            y: e.target.y(),
-          })
-        }}
-        onTransformEnd={handleTransformEnd}
-        id={id || object.id}
-      />
-      {isEditing && (
-        <div
-          style={{
-            position: "absolute",
-            top: textPosition.y + "px",
-            left: textPosition.x + "px",
-            zIndex: 1000,
-          }}
-        >
-          <textarea
-            value={textValue}
-            onChange={handleTextChange}
-            onKeyDown={handleTextareaKeyDown}
-            onBlur={finishEditing}
-            autoFocus
-            style={{
-              width: Math.max(100, textRef.current?.width() || 100) + "px",
-              height: Math.max(50, textRef.current?.height() || 50) + "px",
-              fontSize: (object.fontSize || 16) + "px",
-              fontFamily: object.fontFamily || "Arial",
-              color: object.fill || "#000000",
-              border: "1px solid black",
-              padding: "5px",
-              margin: 0,
-              overflow: "hidden",
-              background: "white",
-              outline: "none",
-              resize: "none",
-            }}
-          />
-        </div>
-      )}
-    </>
+    <Text
+      ref={textRef}
+      x={object.x || 0}
+      y={object.y || 0}
+      text={textValue}
+      fontSize={object.fontSize || 16}
+      fontFamily={object.fontFamily || "Arial"}
+      fill={object.fill || "#000000"}
+      draggable={!isMultiSelected && (object.draggable !== false)}
+      onClick={onSelect}
+      onTap={onSelect}
+      onDblClick={handleDblClick}
+      onDblTap={handleDblClick}
+      onDragEnd={(e) => {
+        updateObject(object.id, {
+          x: e.target.x(),
+          y: e.target.y(),
+        })
+      }}
+      onTransformEnd={handleTransformEnd}
+      id={id || object.id}
+    />
   )
 }

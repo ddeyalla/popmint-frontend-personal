@@ -12,15 +12,19 @@ import {
   Scale,
   ChevronDown,
   Trash2,
+  MoveDiagonal,
+  Undo2,
+  Redo2,
+  MousePointer2,
 } from "lucide-react"
 import { useCanvasStore } from "@/store/canvasStore"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 const TOOL_OPTIONS = [
-  { value: "move", label: "Move", icon: Move, shortcut: "V" },
+  { value: "move", label: "Move", icon: MousePointer2, shortcut: "V" },
   { value: "hand", label: "Hand", icon: Hand, shortcut: "H" },
-  { value: "scale", label: "Scale", icon: Scale, shortcut: "K" },
+  { value: "scale", label: "Scale", icon: MoveDiagonal, shortcut: "K" },
 ]
 
 export function CanvasToolbar() {
@@ -202,7 +206,7 @@ export function CanvasToolbar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={undo} className="h-9 w-9 rounded-full hover:bg-gray-100" aria-label="Undo">
-              <ArrowLeft className="h-5 w-5 text-gray-700" />
+              <Undo2 className="h-5 w-5 text-gray-700" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -212,7 +216,7 @@ export function CanvasToolbar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={redo} className="h-9 w-9 rounded-full hover:bg-gray-100" aria-label="Redo">
-              <ArrowRight className="h-5 w-5 text-gray-700" />
+              <Redo2 className="h-5 w-5 text-gray-700" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
