@@ -4,10 +4,10 @@ import { useSessionStore } from "@/store/sessionStore"
 import { SidebarToggle } from "./sidebar-toggle"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+import { ProjectTitleDropdown } from "./project-title-dropdown"
 
 export function CollapsedOverlay({ position = "right" }: { position?: "left" | "right" }) {
   const { isSidebarCollapsed } = useCanvasStore()
-  const { projectName } = useSessionStore()
 
   if (!isSidebarCollapsed) return null
 
@@ -32,10 +32,7 @@ export function CollapsedOverlay({ position = "right" }: { position?: "left" | "
 
         {/* Project name + status */}
         <div className="flex items-center gap-2 px-2 py-2">
-          <div className="flex items-center gap-1">
-            <span className="text-[14px] font-[550] text-[rgba(0,0,0,0.9)]">{projectName}</span>
-            <ChevronDown className="w-4 h-4 text-[rgba(0,0,0,0.9)]" />
-          </div>
+          <ProjectTitleDropdown />
           <span className="text-[12px] font-medium text-[rgba(0,0,0,0.5)] tracking-[0.5%]">Auto-saved</span>
         </div>
       </div>

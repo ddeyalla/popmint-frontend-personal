@@ -9,8 +9,13 @@ const nextConfig = {
       };
     }
     
+    // Add support for resolving node_modules from parent directory
+    config.resolve.modules.unshift('../node_modules');
+    
     return config;
   },
+  // Add this to ensure proper transpilation of the radix-ui packages
+  transpilePackages: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-slot'],
 };
 
 module.exports = nextConfig;

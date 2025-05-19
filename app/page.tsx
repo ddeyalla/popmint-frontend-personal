@@ -257,14 +257,40 @@ export default function Home() {
       // Generate a random session ID
       const sessionId = Math.random().toString(36).substring(2, 9)
 
-      // Store the message and images in localStorage if needed
+      // Generate project name from first 3 words of input (or fewer if input is shorter)
+      let projectName = "Untitled Project"
+      if (inputValue.trim()) {
+        const words = inputValue.trim().split(/\s+/).filter(word => word.length > 0)
+        const firstThreeWords = words.slice(0, 3).join(" ")
+        if (firstThreeWords) {
+          const uniqueId = Math.random().toString(36).substring(2, 6)
+          projectName = `${firstThreeWords} ${uniqueId}`
+        }
+      }
+      // Store the project name
+      localStorage.setItem("popmint-project-name", projectName)
+
+      // Prepare image URLs if any
+      const imageUrls = uploadedImages.length > 0 
+        ? uploadedImages.map(img => img.previewUrl) 
+        : undefined;
+
+      // Store the message as a chat message for the playground to display
+      const initialMessage = {
+        type: "userInput",
+        content: inputValue.trim() || "Check out these images",
+        timestamp: new Date().toISOString(),
+        imageUrls: imageUrls
+      }
+      localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessage))
+      
+      // Keep the original storage for backward compatibility
       if (inputValue.trim()) {
         localStorage.setItem("popmint-prompt", inputValue)
       }
 
-      // Store uploaded images if any
+      // Store uploaded images if any (keeping for backward compatibility)
       if (uploadedImages.length > 0) {
-        const imageUrls = uploadedImages.map((img) => img.previewUrl)
         localStorage.setItem("popmint-images", JSON.stringify(imageUrls))
       }
 
@@ -278,15 +304,26 @@ export default function Home() {
   }
 
   const handleSuggestionClick = (suggestion: string) => {
-    const newText = inputValue ? `${inputValue} ${suggestion}` : suggestion;
-    setInputValue(newText)
-    setSelectedSuggestion(suggestion)
+    // If there's a previously selected suggestion, remove it from the input value
+    let baseText = inputValue;
+    if (selectedSuggestion) {
+      // Remove the previous suggestion from the text
+      baseText = baseText.replace(selectedSuggestion, '').trim();
+    }
+    
+    // Set the new text with the selected suggestion
+    const newText = baseText ? `${baseText} ${suggestion}` : suggestion;
+    
+    setInputValue(newText);
+    setSelectedSuggestion(suggestion);
+    
     // Focus the input area after suggestion click
     contentEditableRef.current?.focus();
+    
     // Set selection to the end of the input
     if (contentEditableRef.current) {
-        const textLength = newText.length;
-        setCurrentSelection({ start: textLength, end: textLength });
+      const textLength = newText.length;
+      setCurrentSelection({ start: textLength, end: textLength });
     }
   }
 
@@ -375,20 +412,15 @@ export default function Home() {
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-gradient-to-tr from-sky-300 via-purple-200 via-70% to-yellow-100 relative overflow-hidden">
-      {/* Decorative blobs */}
-      <div className="absolute w-96 h-96 bg-green-100 opacity-50 rounded-full blur-3xl left-10 top-24"></div>
-      <div className="absolute w-72 h-72 bg-pink-100 opacity-40 rounded-full blur-2xl right-24 top-10"></div>
-      <div className="absolute w-96 h-96 bg-yellow-100 opacity-40 rounded-full blur-2xl right-0 bottom-0"></div>
-      <div className="absolute w-80 h-80 bg-purple-200 opacity-30 rounded-full blur-2xl left-0 bottom-12"></div>
       
       {/* Noise texture overlay */}
-      <div className="pointer-events-none absolute inset-0 z-100 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-100 mix-blend-overlay"></div>
+      <div className="pointer-events-none absolute inset-0 z-100 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
       
-      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col min-h-[calc(100vh-80px)]">
+      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
         {/* Header - Sticky */}
         <header className="flex justify-between items-center sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <Heart className="h-6 w-6 fill-black" />
+            <img src="/popmint_logo.svg" alt="Popmint Logo" className="w-5 h-5" />
             <span className="text-xl font-medium">Popmint</span>
           </div>
           <Button variant="outline" className="bg-black text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-black/90">
@@ -410,16 +442,16 @@ export default function Home() {
             onDrop={handleDrop}
           >
             <div
-              className={`w-full max-w-xl px-3 py-2.5 bg-white rounded-2xl outline outline-1 outline-offset-[-1px] 
+              className={`w-full max-w-xl px-3 py-2 bg-white rounded-[15px] outline-offset-[-1px] 
               ${isDragging ? "outline-blue-400 bg-blue-50" : "outline-gray-200"} 
-              inline-flex flex-col justify-end items-end gap-4 overflow-hidden transition-colors`}
+              inline-flex flex-col justify-end items-end gap-2 overflow-hidden transition-colors`}
             >
               {/* Image Previews - Above text input */}
               {uploadedImages.length > 0 && (
-                <div className="self-stretch flex flex-wrap gap-2 mb-2">
+                <div className="self-stretch flex flex-wrap gap-2">
                   {uploadedImages.map((img) => (
                     <div key={img.id} className="relative group">
-                      <div className="w-16 h-16 rounded-md overflow-hidden border border-gray-200">
+                      <div className="w-20 h-20 rounded-[10px] overflow-hidden border border-gray-200 transition delay-150 duration-240 ease-in-out hover:rotate-5">
                         <img
                           src={img.previewUrl || "/placeholder.svg"}
                           alt="Preview"
@@ -428,10 +460,10 @@ export default function Home() {
                       </div>
                       <button
                         onClick={() => removeImage(img.id)}
-                        className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-1 -right-1 bg-slate-700 rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
                         aria-label="Remove image"
                       >
-                        <X className="w-2.5 h-2.5" />
+                        <X className="w-3 h-3 text-white" />
                       </button>
                     </div>
                   ))}
@@ -534,11 +566,11 @@ export default function Home() {
 
           {/* Suggestion Pills */}
           <div className="flex flex-wrap gap-3 mt-8 justify-center">
-            {["Brainstorm Ads", "Ad briefs", "Beverages", "Bags"].map((tag) => (
+            {["Facebook ad", "Instagram ad", "Product ad", "Discount ad"].map((tag) => (
               <button
                 key={tag}
                 className={`px-5 py-2 rounded-full text-sm transition-colors ${
-                  selectedSuggestion === tag ? "bg-blue-100 text-blue-700" : "bg-white hover:bg-gray-50"
+                  selectedSuggestion === tag ? "bg-slate-50 text-black-950 outline-2 outline-offset-2 border border-double border-blue-500" : "bg-slate-50 hover:bg-slate-100"
                 }`}
                 onClick={() => handleSuggestionClick(tag)}
               >
