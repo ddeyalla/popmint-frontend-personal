@@ -556,7 +556,7 @@ export function CanvasArea() {
       <div
         className={cn(
           "w-full h-full overflow-hidden transition-all duration-200 ease-in-out",
-          isSidebarCollapsed ? "" : "max-w-[1131px] mx-auto flex items-center justify-center"
+          !isSidebarCollapsed && "max-w-[1131px] mx-auto flex items-center justify-center"
         )}
         style={{ overflow: "hidden" }}
         ref={containerRef}
