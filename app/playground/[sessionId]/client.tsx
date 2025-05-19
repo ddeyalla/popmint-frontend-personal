@@ -1,52 +1,76 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { CanvasArea } from "@/components/playground/canvas/canvas-area"
-import { ChatPanel } from "@/components/playground/chat-panel/chat-panel"
-import { CollapsedOverlay } from "@/components/playground/collapsed-overlay"
-import { useCanvasStore } from "@/store/canvasStore"
-import { cn } from "@/lib/utils"
+import { useEffect, useState } from "react";
+import { ChatPanel } from "@/components/playground/chat-panel/chat-panel";
+import { CanvasArea } from "@/components/playground/canvas/canvas-area";
+import { useChatStore } from "@/store/chatStore";
+import { useCanvasStore } from "@/store/canvasStore";
 
-export default function PlaygroundPage() {
-  const { isSidebarCollapsed } = useCanvasStore()
+interface ClientSidePlaygroundProps {
+  sessionId: string;
+}
 
-  // Add console log to track sidebar state changes in the page component
+export default function ClientSidePlayground({ sessionId }: ClientSidePlaygroundProps) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const addMessage = useChatStore((state) => state.addMessage);
+  const isSidebarCollapsed = useCanvasStore((state) => state.isSidebarCollapsed);
+
   useEffect(() => {
-    console.log('Page component: Sidebar collapsed state changed:', isSidebarCollapsed);
-  }, [isSidebarCollapsed]);
+    if (isLoaded) return;
+    setIsLoaded(true);
+
+    const initializeChat = async () => {
+      addMessage({
+        type: "userInput",
+        content: "Create an ad for a mango flavored protein powder highlighting its freshness",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      addMessage({ type: "agentProgress", content: "Analyzing your request..." });
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      addMessage({
+        type: "agentOutput",
+        content:
+          "There seems to be few issues with the generated adds\n\n1. The ad creatives are not matching the brand tone\n2. The ad creatives need to be 9:16 aspect ratio for Instagram\n3. The ad creatives need to be themed around Diwali\n\nI'll go ahead fix these and make variants",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      addMessage({
+        type: "agentOutput",
+        subType: "image_generated",
+        content: "Great! Now I have fixed your ads and create 5 more variants",
+        imageUrls: [
+          "/image-1.png",
+          "/image-2.png",
+          "/image-3.png",
+          "/image-4.png"
+        ],
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      addMessage({
+        type: "agentOutput",
+        content:
+          "What do you think about the ads? If you want to try different concept, edit or want more variants, drop your thoughts in the chat 👇",
+      });
+    };
+
+    if (useChatStore.getState().messages.length === 0) {
+      initializeChat();
+    }
+  }, [addMessage, isLoaded, sessionId]);
 
   return (
-    <div 
-      className={cn(
-        "flex h-screen w-screen transition-all duration-300 ease-in-out", 
-        isSidebarCollapsed ? "p-2" : "p-2"
-      )}
-    >
-      {/* Sidebar */}
-      <div
-        className={cn(
-          "fixed left-0 top-0 h-full w-[372px] bg-white z-40 transition-transform duration-300 ease-in-out",
-          isSidebarCollapsed ? "-translate-x-full" : "translate-x-0"
-        )}
-        style={{ willChange: "transform" }}
-      >
-        <div className="relative h-full">
+    <div className="flex h-screen w-full overflow-hidden bg-[#FFFFFF] p-2 gap-2">
+      {!isSidebarCollapsed && (
+        <div className="w-1/4 min-w-[320px] max-w-[372px] h-full flex-shrink-0">
           <ChatPanel />
         </div>
-      </div>
-
-      {/* Main canvas area */}
-      <div 
-        className="relative flex-1 min-w-0 h-full z-30 transition-transform duration-300 ease-in-out"
-        style={{ 
-          willChange: "transform",
-          transform: isSidebarCollapsed ? 'translateX(0)' : 'translateX(372px)',
-          width: isSidebarCollapsed ? '100vw' : 'calc(100vw - 372px)'
-        }}
-      >
+      )}
+      <div className="flex-1 w-full h-full">
         <CanvasArea />
-        <CollapsedOverlay position="left" />
       </div>
     </div>
-  )
-}
+  );
+} 

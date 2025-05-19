@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { CanvasArea } from "@/components/playground/canvas/canvas-area"
 import { ChatPanel } from "@/components/playground/chat-panel/chat-panel"
 import { CollapsedOverlay } from "@/components/playground/collapsed-overlay"
@@ -9,10 +9,19 @@ import { cn } from "@/lib/utils"
 
 export default function PlaygroundPage() {
   const { isSidebarCollapsed } = useCanvasStore()
+  const canvasAreaWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Add console log to track sidebar state changes in the page component
   useEffect(() => {
-    console.log('Page component: Sidebar collapsed state changed:', isSidebarCollapsed);
+    console.log('[PlaygroundPage] Sidebar collapsed state changed:', isSidebarCollapsed);
+    if (canvasAreaWrapperRef.current) {
+      console.log('[PlaygroundPage] CanvasAreaWrapper offsetWidth:', canvasAreaWrapperRef.current.offsetWidth);
+    }
+    const timerId = setTimeout(() => {
+      if (canvasAreaWrapperRef.current) {
+        console.log('[PlaygroundPage] CanvasAreaWrapper offsetWidth (after 350ms delay):', canvasAreaWrapperRef.current.offsetWidth);
+      }
+    }, 350);
+    return () => clearTimeout(timerId);
   }, [isSidebarCollapsed]);
 
   return (
@@ -37,7 +46,8 @@ export default function PlaygroundPage() {
 
       {/* Main canvas area */}
       <div 
-        className="relative flex-1 min-w-0 h-full z-30 transition-transform duration-300 ease-in-out "
+        ref={canvasAreaWrapperRef}
+        className="relative min-w-0 h-full z-30 transition-transform duration-300 ease-in-out "
         style={{ 
           willChange: "transform",
           transform: isSidebarCollapsed ? 'translateX(0)' : 'translateX(372px)',
