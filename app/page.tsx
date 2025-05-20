@@ -5,9 +5,18 @@ import { Heart, ImageIcon, X, ArrowUp } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { generateImageFromPrompt } from '@/lib/generate-image'
 
 // More permissive URL regex that handles complex URLs with various special characters
 const URL_REGEX = /(https?:\/\/|www\.|ftp:\/\/)[^\s\n\r\)\]\}"']+[^\s\n\r\)\]\}"'\.](?=[\s\n\r\)\]\}"']|$)/gim;
+
+// Image types
+type ImageData = {
+  id: string;
+  file: File | null;
+  previewUrl: string;
+  type?: 'uploaded' | 'generated';
+};
 
 const highlightUrls = (text: string): string => {
   if (!text) return "";
@@ -76,7 +85,7 @@ export default function Home() {
   const router = useRouter()
   const [inputValue, setInputValue] = useState("")
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null)
-  const [uploadedImages, setUploadedImages] = useState<Array<{id: string, file: File, previewUrl: string}>>([])
+  const [uploadedImages, setUploadedImages] = useState<ImageData[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -186,7 +195,7 @@ export default function Home() {
   const processFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return
 
-    const newImages: Array<{id: string, file: File, previewUrl: string}> = []
+    const newImages: ImageData[] = []
 
     Array.from(files).forEach((file) => {
       // Only process image files
@@ -199,6 +208,7 @@ export default function Home() {
         id,
         file,
         previewUrl,
+        type: 'uploaded'
       })
     })
 
@@ -248,60 +258,79 @@ export default function Home() {
     })
   }
 
-  const handleSubmit = () => {
-    if (isSubmitting || (!inputValue.trim() && uploadedImages.length === 0)) return
+  // Function to proxy an image URL through our proxy API
+  const getProxiedImageUrl = (url: string) => {
+    return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  };
 
-    setIsSubmitting(true)
+  const handleSubmit = async () => {
+    if (isSubmitting || (!inputValue.trim() && uploadedImages.length === 0)) return;
+
+    setIsSubmitting(true);
+    console.log('[HomePage] handleSubmit initiated. Input:', inputValue, 'Uploaded Images:', uploadedImages.length);
 
     try {
-      // Generate a random session ID
-      const sessionId = Math.random().toString(36).substring(2, 9)
+      // Check if this is an image generation request
+      const isImageRequest = inputValue.trim().toLowerCase().startsWith("/image") || 
+                             inputValue.trim().toLowerCase().includes("generate image");
+      console.log('[HomePage] isImageRequest:', isImageRequest);
+      
+      // Generate a session ID for the playground
+      const sessionId = Math.random().toString(36).substring(2, 9);
+      console.log('[HomePage] Generated sessionId:', sessionId);
 
-      // Generate project name from first 3 words of input (or fewer if input is shorter)
-      let projectName = "Untitled Project"
+      // Set project name from the input
+      let projectName = "Untitled Project";
       if (inputValue.trim()) {
-        const words = inputValue.trim().split(/\s+/).filter(word => word.length > 0)
-        const firstThreeWords = words.slice(0, 3).join(" ")
+        const words = inputValue.trim().split(/\s+/);
+        const firstThreeWords = words.slice(0, 3).join(" ");
         if (firstThreeWords) {
-          const uniqueId = Math.random().toString(36).substring(2, 6)
-          projectName = `${firstThreeWords} ${uniqueId}`
+          const uniqueId = Math.random().toString(36).substring(2, 7);
+          projectName = `${firstThreeWords} ${uniqueId}`;
         }
       }
-      // Store the project name
-      localStorage.setItem("popmint-project-name", projectName)
+      localStorage.setItem("popmint-project-name", projectName);
+      console.log('[HomePage] Stored popmint-project-name:', projectName);
 
-      // Prepare image URLs if any
-      const imageUrls = uploadedImages.length > 0 
-        ? uploadedImages.map(img => img.previewUrl) 
-        : undefined;
+      // Get all uploaded image URLs
+      const userUploadedImageUrls = uploadedImages.map(img => img.previewUrl);
+      console.log('[HomePage] User uploaded image URLs:', userUploadedImageUrls);
 
-      // Store the message as a chat message for the playground to display
-      const initialMessage = {
+      // Create the initial message
+      const initialMessagePayload = {
         type: "userInput",
-        content: inputValue.trim() || "Check out these images",
-        timestamp: new Date().toISOString(),
-        imageUrls: imageUrls
-      }
-      localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessage))
+        content: inputValue.trim(), // Use trimmed input for content
+        imageUrls: userUploadedImageUrls 
+      };
+      localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
+      console.log('[HomePage] Stored popmint-initial-message:', JSON.stringify(initialMessagePayload));
       
-      // Keep the original storage for backward compatibility
-      if (inputValue.trim()) {
-        localStorage.setItem("popmint-prompt", inputValue)
-      }
+      // Set flag to indicate if this is an image generation request
+      const shouldProcessImage = isImageRequest && !!inputValue.trim();
+      localStorage.setItem("popmint-should-generate-image", shouldProcessImage ? "true" : "false");
+      console.log('[HomePage] Should generate image:', shouldProcessImage);
+      
+      // Store the raw input for processing
+      const promptToProcess = inputValue.trim();
+      localStorage.setItem("popmint-prompt-to-process", promptToProcess);
+      console.log('[HomePage] Stored prompt:', promptToProcess);
+      
+      // Clean up any old localStorage items
+      localStorage.removeItem("popmint-prompt");
+      localStorage.removeItem("popmint-images");
+      localStorage.removeItem("popmint-process-image");
+      localStorage.removeItem("popmint-image-generating");
+      console.log('[HomePage] Cleaned up localStorage');
 
-      // Store uploaded images if any (keeping for backward compatibility)
-      if (uploadedImages.length > 0) {
-        localStorage.setItem("popmint-images", JSON.stringify(imageUrls))
-      }
-
-      // Navigate to the playground
-      router.push(`/playground/${sessionId}`)
+      // Navigate to the playground with the session ID
+      console.log('[HomePage] Navigating to playground with sessionId:', sessionId);
+      router.push(`/playground/${sessionId}`);
     } catch (error) {
-      console.error("Error starting session:", error)
-    } finally {
-      setIsSubmitting(false)
+      console.error("[HomePage] Error in handleSubmit:", error);
+      setIsSubmitting(false);
+      alert("An error occurred. Please try again.");
     }
-  }
+  };
 
   const handleSuggestionClick = (suggestion: string) => {
     // If there's a previously selected suggestion, remove it from the input value
@@ -416,7 +445,7 @@ export default function Home() {
       {/* Noise texture overlay */}
       <div className="pointer-events-none absolute inset-0 z-100 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
       
-      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
+      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col z-100 min-h-[calc(100%-80px)]">
         {/* Header - Sticky */}
         <header className="flex justify-between items-center sticky top-0 z-10">
           <div className="flex items-center gap-2">
@@ -532,7 +561,7 @@ export default function Home() {
                   {/* Image upload button with proper icon */}
                   <button
                     onClick={handleImageUpload}
-                    className="p-3 bg-white rounded-[100px] outline outline-1 outline-offset-[-1px] outline-gray-200 flex justify-center items-center hover:bg-gray-50"
+                    className="p-3 bg-white rounded-[100px] outline outline-offset-[-1px] outline-gray-200 flex justify-center items-center hover:bg-gray-50"
                     aria-label="Upload image"
                   >
                     <ImageIcon className="w-4 h-4 text-gray-700" />
@@ -555,10 +584,14 @@ export default function Home() {
                       ? "bg-blue-500 hover:bg-blue-600 text-white"
                       : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}
-                  disabled={!inputValue.trim() && uploadedImages.length === 0}
+                  disabled={!inputValue.trim() && uploadedImages.length === 0 || isSubmitting}
                   aria-label="Send message"
                 >
-                  <ArrowUp className="w-5 h-5" />
+                  {isSubmitting ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <ArrowUp className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>

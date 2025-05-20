@@ -15,6 +15,7 @@ interface AIInputWithSearchProps {
   onSubmit?: (value: string, withSearch: boolean) => void;
   onFileSelect?: (file: File) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 export function AIInputWithSearch({
@@ -24,7 +25,8 @@ export function AIInputWithSearch({
   maxHeight = 164,
   onSubmit,
   onFileSelect,
-  className
+  className,
+  disabled = false
 }: AIInputWithSearchProps) {
   const [value, setValue] = useState("");
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -60,10 +62,11 @@ export function AIInputWithSearch({
               id={id}
               value={value}
               placeholder={placeholder}
+              disabled={disabled}
               className="w-full rounded-xl rounded-b-none px-2 py-2 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none focus-visible:ring-0 leading-[1.2]"
               ref={textareaRef}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey && !disabled) {
                   e.preventDefault();
                   handleSubmit();
                 }
@@ -77,22 +80,28 @@ export function AIInputWithSearch({
 
           <div className="h-4 dark:bg-white/5 rounded-10px">
             <div className="absolute left-2 bottom-2 flex items-center gap-2">
-              <label className="cursor-pointer rounded-lg p-2 bg-black/5 dark:bg-white/5">
+              <label className={cn(
+                "cursor-pointer rounded-lg p-2 bg-black/5 dark:bg-white/5",
+                disabled && "opacity-50 cursor-not-allowed"
+              )}>
                 <input 
                   type="file" 
                   className="hidden" 
                   onChange={handleFileChange}
+                  disabled={disabled}
                 />
                 <ImagePlus className="w-4 h-4 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors" />
               </label>
               <button
                 type="button"
-                onClick={() => setShowSearch(!showSearch)}
+                disabled={disabled}
+                onClick={() => !disabled && setShowSearch(!showSearch)}
                 className={cn(
                   "rounded-full transition-all flex items-center gap-2 px-1.5 py-1 border h-8",
                   showSearch
                     ? "bg-sky-500/15 border-sky-400 text-sky-500"
-                    : "bg-black/5 dark:bg-white/5 border-transparent text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white"
+                    : "bg-black/5 dark:bg-white/5 border-transparent text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
+                  disabled && "opacity-50 cursor-not-allowed"
                 )}
               >
                 <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
@@ -147,12 +156,14 @@ export function AIInputWithSearch({
             <div className="absolute rounded-full right-2 bg-blue-400 bottom-2">
               <button
                 type="button"
-                onClick={handleSubmit}
+                disabled={disabled}
+                onClick={() => !disabled && handleSubmit()}
                 className={cn(
                   "rounded-lg bg-blue-900 p-2 transition-colors",
                   value
                     ? "bg-sky-500/15 text-sky-500"
-                    : "bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white"
+                    : "bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
+                  disabled && "opacity-50 cursor-not-allowed"
                 )}
               >
                 <ArrowUp strokeWidth={3} color="white" className="w-4 h-4" />

@@ -100,19 +100,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   addImage: (src, x = 20, y = 20) => {
+    // TEST_DALL_E_INTEGRATION - Add debugging logs
+    console.log('🔍 DEBUG - canvasStore.addImage called with src:', src, 'x:', x, 'y:', y);
     try {
       // Create a new image element
       const img = new Image()
       img.crossOrigin = "anonymous"
       img.src = src
+      console.log('🔍 DEBUG - Created new Image with crossOrigin=anonymous and src:', src);
 
       // Handle image load
       img.onload = () => {
+        console.log('🔍 DEBUG - Image loaded successfully, dimensions:', img.width, 'x', img.height);
         try {
           const maxWidth = 400
           const scale = img.width > maxWidth ? maxWidth / img.width : 1
+          console.log('🔍 DEBUG - Calculated image scale:', scale, 'maxWidth:', maxWidth);
 
           // Add the object to the store
+          console.log('🔍 DEBUG - Adding image object to store with dimensions:', 
+            'width:', img.width * scale, 
+            'height:', img.height * scale);
           get().addObject({
             type: "image",
             x,
@@ -121,16 +129,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             height: img.height * scale,
             src,
           })
+          console.log('🔍 DEBUG - Image object added to store successfully');
         } catch (error) {
-          console.error("Error processing loaded image:", error)
+          console.error("❌ ERROR - Error processing loaded image:", error)
         }
       }
 
       // Handle image error
-      img.onerror = () => {
-        console.error(`Failed to load image: ${src}`)
+      img.onerror = (event) => {
+        console.error(`❌ ERROR - Failed to load image: ${src}`, event);
 
         // Add a placeholder instead
+        console.log('🔍 DEBUG - Adding placeholder text for failed image');
         get().addObject({
           type: "text",
           x,
@@ -142,7 +152,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         })
       }
     } catch (error) {
-      console.error("Error adding image:", error)
+      console.error("❌ ERROR - Error adding image:", error)
     }
   },
 
