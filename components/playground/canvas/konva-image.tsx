@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, memo } from "react"
 import { Image, Transformer, Group, Text, Rect, Label, Tag } from "react-konva"
 import { type KonvaObject, useCanvasStore } from "@/store/canvasStore"
 
@@ -13,7 +13,8 @@ interface KonvaImageProps {
   onTransformEnd?: (e: any) => void
 }
 
-export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, onTransformEnd }: KonvaImageProps) {
+// Create a non-memoized version of the component first
+function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onTransformEnd }: KonvaImageProps) {
   const { updateObject, deleteObject, zoomLevel } = useCanvasStore()
   const imageRef = useRef<any>(null)
   const transformerRef = useRef<any>(null)
@@ -178,16 +179,16 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, 
             <Rect
               width={80}
               height={22}
-              cornerRadius={4}
-              fill="rgba(240, 240, 240, 0.9)"
-              stroke="rgba(0, 0, 0, 0.05)"
+              cornerRadius={6} 
+              fill="rgba(252, 252, 252, 0.95)" 
+              stroke="rgba(0, 0, 0, 0.04)" 
               strokeWidth={1}
               offsetX={40}
               offsetY={0}
-              shadowColor="rgba(0,0,0,0.1)"
-              shadowBlur={2}
+              shadowColor="rgba(0,0,0,0.08)" 
+              shadowBlur={4} 
               shadowOffsetY={1}
-              shadowOpacity={0.2}
+              shadowOpacity={0.6} 
               scaleX={effectiveScale}
               scaleY={effectiveScale}
             />
@@ -223,14 +224,14 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, 
               <Rect
                 width={buttonWidth}
                 height={buttonHeight}
-                fill={hoveredButton === 'download' ? '#f0f9ff' : 'white'}
-                stroke={hoveredButton === 'download' ? '#0ea5e9' : 'rgba(0, 0, 0, 0.1)'}
+                fill={hoveredButton === 'download' ? '#e0f2fe' : 'white'} 
+                stroke={hoveredButton === 'download' ? '#7dd3fc' : 'rgba(0, 0, 0, 0.07)'} 
                 strokeWidth={1}
                 cornerRadius={buttonHeight / 2} /* Fully rounded */
-                shadowColor="rgba(0,0,0,0.1)"
-                shadowBlur={3}
-                shadowOffsetY={1}
-                shadowOpacity={hoveredButton === 'download' ? 0.4 : 0.2}
+                shadowColor="rgba(0,0,0,0.06)" 
+                shadowBlur={5}
+                shadowOffsetY={2}
+                shadowOpacity={hoveredButton === 'download' ? 0.7 : 0.5}
               />
               <Text
                 text="Download"
@@ -243,7 +244,7 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, 
                 fontSize={buttonFontSize}
                 fontFamily="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
                 fontStyle="500"
-                fill={hoveredButton === 'download' ? '#0284c7' : '#3f3f46'}
+                fill={hoveredButton === 'download' ? '#0ea5e9' : '#3f3f46'} 
               />
             </Group>
             
@@ -257,14 +258,14 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, 
               <Rect
                 width={buttonWidth}
                 height={buttonHeight}
-                fill={hoveredButton === 'delete' ? '#fef2f2' : 'white'}
-                stroke={hoveredButton === 'delete' ? '#ef4444' : 'rgba(0, 0, 0, 0.1)'}
+                fill={hoveredButton === 'delete' ? '#fee2e2' : 'white'} 
+                stroke={hoveredButton === 'delete' ? '#fca5a5' : 'rgba(0, 0, 0, 0.07)'} 
                 strokeWidth={1}
                 cornerRadius={buttonHeight / 2} /* Fully rounded */
-                shadowColor="rgba(0,0,0,0.1)"
-                shadowBlur={3}
-                shadowOffsetY={1}
-                shadowOpacity={hoveredButton === 'delete' ? 0.4 : 0.2}
+                shadowColor="rgba(0,0,0,0.06)" 
+                shadowBlur={5}
+                shadowOffsetY={2}
+                shadowOpacity={hoveredButton === 'delete' ? 0.7 : 0.5}
               />
               <Text
                 text="Delete"
@@ -277,7 +278,7 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, 
                 fontSize={buttonFontSize}
                 fontFamily="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
                 fontStyle="500"
-                fill={hoveredButton === 'delete' ? '#dc2626' : '#3f3f46'}
+                fill={hoveredButton === 'delete' ? '#ef4444' : '#3f3f46'} 
               />
             </Group>
           </Group>
@@ -299,3 +300,21 @@ export function KonvaImage({ object, isSelected, onSelect, id, isMultiSelected, 
     </Group>
   )
 }
+
+// Custom comparison function for React.memo
+function arePropsEqual(prevProps: KonvaImageProps, nextProps: KonvaImageProps) {
+  // Only re-render if these specific props change
+  return (
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isMultiSelected === nextProps.isMultiSelected &&
+    prevProps.object.id === nextProps.object.id &&
+    prevProps.object.x === nextProps.object.x &&
+    prevProps.object.y === nextProps.object.y &&
+    prevProps.object.width === nextProps.object.width &&
+    prevProps.object.height === nextProps.object.height &&
+    prevProps.object.src === nextProps.object.src
+  );
+}
+
+// Export the memoized version of KonvaImage
+export const KonvaImage = memo(KonvaImageBase, arePropsEqual);

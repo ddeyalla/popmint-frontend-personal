@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect, useCallback, memo } from "react"
 import { Button } from "@/components/ui/button"
 import {
   ArrowLeft,
@@ -27,7 +27,8 @@ const TOOL_OPTIONS = [
   { value: "scale", label: "Scale", icon: MoveDiagonal, shortcut: "K" },
 ]
 
-export function CanvasToolbar() {
+// Create a non-memoized version of the component
+function CanvasToolbarBase() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const {
     undo,
@@ -61,9 +62,10 @@ export function CanvasToolbar() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [setToolMode])
 
-  // Upload image handler
-  const handleUploadClick = () => fileInputRef.current?.click()
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload image handler - memoize with useCallback
+  const handleUploadClick = useCallback(() => fileInputRef.current?.click(), []);
+  
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
     // Always start a new row for each import
@@ -113,18 +115,33 @@ export function CanvasToolbar() {
       reader.readAsDataURL(file)
     }
     processFile(0)
-  }
+  }, [addImage]);
+
+  // Memoize the tool selection handler
+  const handleToolSelect = useCallback((toolValue: 'move' | 'hand' | 'scale') => {
+    setToolMode(toolValue);
+    setDropdownOpen(false);
+  }, [setToolMode]);
+
+  // Memoize text addition
+  const handleAddText = useCallback(() => addText("Text"), [addText]);
+  
+  // Memoize deletion
+  const handleDeleteSelected = useCallback(() => deleteObject(selectedObjectIds), [deleteObject, selectedObjectIds]);
+  
+  // Memoize dropdown toggle
+  const toggleDropdown = useCallback(() => setDropdownOpen(prev => !prev), []);
 
   return (
     <TooltipProvider>
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] flex items-center p-1.5 border z-50">
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] flex items-center p-1.5 z-50">
         {/* Cursor Dropdown */}
         <div className="relative">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-16 rounded-full hover:bg-gray-100 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-600"
-            onClick={() => setDropdownOpen((open) => !open)}
+            onClick={toggleDropdown}
             aria-label="Select Tool"
             aria-haspopup="listbox"
             aria-expanded={dropdownOpen}
@@ -133,7 +150,7 @@ export function CanvasToolbar() {
             <ChevronDown className="h-4 w-4 ml-1 text-gray-400" />
           </Button>
           {dropdownOpen && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-4 w-40 bg-white border border-gray-200 rounded-3xl shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] z-50 animate-fade-in">
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-4 w-40 bg-white rounded-3xl shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] z-50 animate-fade-in">
               <ul className="p-1" role="listbox" aria-label="Tool selection">
                 {TOOL_OPTIONS.map((tool) => (
                   <li key={tool.value} role="option" aria-selected={toolMode === tool.value}>
@@ -144,10 +161,7 @@ export function CanvasToolbar() {
                           ? "bg-blue-100 text-blue-500 font-medium"
                           : "hover:bg-blue-50 focus:bg-gray-100 text-gray-700"
                       )}
-                      onClick={() => {
-                        setToolMode(tool.value as 'move'|'hand'|'scale')
-                        setDropdownOpen(false)
-                      }}
+                      onClick={() => handleToolSelect(tool.value as 'move'|'hand'|'scale')}
                       tabIndex={0}
                     >
                       <tool.icon className="h-4 w-4 mr-2" />
@@ -193,7 +207,7 @@ export function CanvasToolbar() {
               variant="ghost"
               size="icon"
               className="h-9 w-9 rounded-full hover:bg-gray-100"
-              onClick={() => addText("Text")}
+              onClick={handleAddText}
               aria-label="Add Text"
             >
               <Type className="h-5 w-5 text-gray-700" />
@@ -233,7 +247,7 @@ export function CanvasToolbar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => deleteObject(selectedObjectIds)}
+                  onClick={handleDeleteSelected}
                   className="h-9 w-9 rounded-full hover:bg-red-100 text-red-500"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -249,3 +263,6 @@ export function CanvasToolbar() {
     </TooltipProvider>
   )
 }
+
+// Export a memoized version of the component
+export const CanvasToolbar = memo(CanvasToolbarBase);
