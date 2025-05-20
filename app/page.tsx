@@ -267,19 +267,11 @@ export default function Home() {
     if (isSubmitting || (!inputValue.trim() && uploadedImages.length === 0)) return;
 
     setIsSubmitting(true);
-    console.log('[HomePage] handleSubmit initiated. Input:', inputValue, 'Uploaded Images:', uploadedImages.length);
-
+    
     try {
-      // Check if this is an image generation request
-      // For our flow, we'll treat ALL prompts from the homepage as image generation requests
-      // This removes the need to detect specific keywords
-      const isImageRequest = true; // Force all submissions to generate images
-      console.log('[HomePage] isImageRequest:', isImageRequest);
-      
       // Generate a session ID for the playground
       const sessionId = Math.random().toString(36).substring(2, 9);
-      console.log('[HomePage] Generated sessionId:', sessionId);
-
+      
       // Generate a project name based on input
       let projectName = "Untitled Project";
       if (inputValue.trim()) {
@@ -291,47 +283,32 @@ export default function Home() {
         }
       }
       
-      // Store the project name
-      localStorage.setItem("popmint-project-name", projectName);
-      console.log('[HomePage] Stored popmint-project-name:', projectName);
-
       // Get image URLs from uploaded images
       const userUploadedImageUrls = uploadedImages.map(img => img.previewUrl);
-      console.log('[HomePage] User uploaded image URLs:', userUploadedImageUrls);
-
+      
       // Create initial message object for the chat panel
       const initialMessagePayload = {
         type: "userInput",
-        content: inputValue.trim(), // Use trimmed input for content
+        content: inputValue.trim(),
         imageUrls: userUploadedImageUrls 
       };
       
-      // Store the initial message
-      localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
-      console.log('[HomePage] Stored popmint-initial-message:', JSON.stringify(initialMessagePayload));
-      
-      // Flag for image generation - ALWAYS set to true for homepage submissions
-      // This ensures every submission from homepage triggers image generation
-      localStorage.setItem("popmint-process-image", "true");
-      console.log('[HomePage] Stored popmint-process-image: true (forced for all homepage submissions)');
-      
-      // Store the raw prompt for processing
-      localStorage.setItem("popmint-prompt-to-process", inputValue.trim());
-      console.log('[HomePage] Stored popmint-prompt-to-process:', inputValue.trim());
-      
-      // Clear any legacy items
+      // First, clear any legacy items to prevent conflicts
       localStorage.removeItem("popmint-prompt");
       localStorage.removeItem("popmint-images");
-      console.log('[HomePage] Cleared legacy localStorage items.');
-
-      // Navigate to playground with session ID
-      console.log('[HomePage] Navigating to playground with sessionId:', sessionId);
+      
+      // Store all required data in localStorage
+      localStorage.setItem("popmint-project-name", projectName);
+      localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
+      localStorage.setItem("popmint-process-image", "true");
+      localStorage.setItem("popmint-prompt-to-process", inputValue.trim());
+      
+      // Navigate immediately - don't wait for any processes
       router.push(`/playground/${sessionId}`);
+      
     } catch (error) {
       console.error("[HomePage] Error in handleSubmit:", error);
       setIsSubmitting(false);
-      
-      // Show error message to user
       alert("An error occurred. Please try again.");
     }
   };

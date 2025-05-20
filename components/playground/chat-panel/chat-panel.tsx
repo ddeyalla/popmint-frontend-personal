@@ -113,7 +113,7 @@ export function ChatPanel() {
   );
 
   return (
-    <div className="flex flex-col bg-transparent bg-white py-0 px-2 h-full">
+    <div className="flex flex-col bg-transparent py-2 px-2 h-full">
       {/* Header */}
       <div className="flex flex-col items-start gap-1 w-full relative mb-2">
         <div className="flex items-center justify-between w-full">
@@ -137,7 +137,7 @@ export function ChatPanel() {
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden mb-2 rounded-lg">
-        <ScrollArea className="h-full px-4 py-2">
+        <ScrollArea className="h-full px-2 py-2">
           <div className="flex flex-col gap-3">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-center">
