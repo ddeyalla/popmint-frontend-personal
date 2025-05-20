@@ -2,17 +2,15 @@
 
 import { useEffect, useRef } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { MessageBubble } from "./message-bubble"
 import { ChatInput } from "./chat-input"
 import { useChatStore } from "@/store/chatStore"
-import { CheckCircle, CircleCheck, ImageIcon } from "lucide-react"
+import { ImageIcon } from "lucide-react"
 import { useSessionStore } from "@/store/sessionStore"
 import { SidebarToggle } from "@/components/playground/sidebar-toggle"
 import { useCanvasStore } from "@/store/canvasStore"
 import Link from "next/link"
 import { ProjectTitleDropdown } from "@/components/playground/project-title-dropdown"
-import { generateImageFromPrompt } from '@/lib/generate-image'
 
 export function ChatPanel() {
   const messages = useChatStore((state) => state.messages)
@@ -31,76 +29,9 @@ export function ChatPanel() {
     }
   }, [setProjectName])
 
-  // Check for initial message from homepage
-  useEffect(() => {
-    const initialMessageStr = localStorage.getItem("popmint-initial-message")
-    
-    if (initialMessageStr && messages.length === 0) {
-      try {
-        const initialMessage = JSON.parse(initialMessageStr)
-        // Add the initial message to the chat
-        addMessage({
-          type: initialMessage.type,
-          content: initialMessage.content,
-          imageUrls: initialMessage.imageUrls
-        })
-        
-        // Clear the stored message so it's not added again
-        localStorage.removeItem("popmint-initial-message")
-        
-        // If the initial message is a DALL-E command, trigger image generation
-        const isImageRequest = initialMessage.content.trim().toLowerCase().startsWith('/image') || initialMessage.content.trim().toLowerCase().includes('generate image');
-        if (isImageRequest) {
-          (async () => {
-            addMessage({ type: "agentProgress", content: "Generating image with DALL-E..." });
-            try {
-              const proxiedUrl = await generateImageFromPrompt(initialMessage.content);
-              // Add to canvas if not already present
-              const addImage = useCanvasStore.getState().addImage;
-              const objects = useCanvasStore.getState().objects;
-              const imageExistsOnCanvas = (url: string) => {
-                const isProxied = url.startsWith('/api/proxy-image');
-                const originalUrl = isProxied 
-                  ? decodeURIComponent(url.split('?url=')[1] || '')
-                  : url;
-                return objects.some(obj => {
-                  if (!obj.src) return false;
-                  const objIsProxied = obj.src.startsWith('/api/proxy-image');
-                  const objOriginalUrl = objIsProxied 
-                    ? decodeURIComponent(obj.src.split('?url=')[1] || '')
-                    : obj.src;
-                  return objOriginalUrl === originalUrl || obj.src === url;
-                });
-              };
-              if (!imageExistsOnCanvas(proxiedUrl)) {
-                addImage(proxiedUrl, 20, 20);
-                addMessage({ type: 'agentOutput', content: 'Here is your generated image!' });
-              } else {
-                addMessage({ type: 'agentOutput', content: 'Image already exists on canvas.' });
-              }
-            } catch (err: any) {
-              addMessage({ type: 'agentOutput', content: `Error: ${err.message || 'Failed to generate image'}` });
-            }
-          })();
-        } else {
-          // Add an agent response after a short delay (for demo purposes)
-          setTimeout(() => {
-            addMessage({ 
-              type: "agentProgress", 
-              content: "Thinking about your request..." 
-            })
-          }, 800)
-        }
-      } catch (error) {
-        console.error("Error parsing initial message:", error)
-      }
-    }
-  }, [addMessage, messages.length])
-
   // Scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
-      console.log('🔍 DEBUG - Scrolling to bottom of chat');
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
@@ -152,8 +83,12 @@ export function ChatPanel() {
 
             {messages.length > 0 && messages[messages.length - 1].type === "agentOutput" && (
               <div className="flex items-center gap-2 w-full mt-2 mb-2">
-                <CircleCheck className="w-4 h-4 text-green-500" />
-                <div className="text-green-600 text-xs font-medium">Image generation completed</div>
+                <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <div className="text-green-600 text-xs font-medium">Complete</div>
               </div>
             )}
 

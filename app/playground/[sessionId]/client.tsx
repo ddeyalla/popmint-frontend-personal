@@ -30,7 +30,7 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
 
     const initializePlayground = async () => {
       try {
-        setIsLoading(true); // Set loading state to true at start
+        setIsLoading(true); // Start loading during initialization only
         console.log('[Playground] Attempting to read localStorage...');
         const initialMessageJson = localStorage.getItem("popmint-initial-message");
         const shouldGenerateImageStr = localStorage.getItem("popmint-should-generate-image");
@@ -75,7 +75,10 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
           console.log('[Playground] No initialMessageJson found in localStorage.');
         }
 
-        // Step 2: Handle image generation if needed
+        // End the loading state now that the basic UI can be displayed
+        setIsLoading(false);
+
+        // Step 2: Handle image generation in the background if needed
         if (shouldGenerateImage && userPrompt) {
           console.log('[Playground] Generating image with prompt:', userPrompt);
           
@@ -85,95 +88,13 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
             content: 'Processing your request...' 
           });
           
-          try {
-            // Make API call to generate image
-            const response = await fetch('/api/agent/generate-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: userPrompt }),
-            });
-            
-            console.log('[Playground] API response status:', response.status);
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('[Playground] Server error:', response.status, errorText);
-              throw new Error(`Server error: ${response.status} - ${errorText}`);
-            }
-            
-            // Process the SSE stream
-            const reader = response.body?.getReader();
-            if (!reader) {
-              console.error('[Playground] Could not read server response body.');
-              throw new Error('Could not read server response body');
-            }
-            
-            const decoder = new TextDecoder();
-            let buffer = '';
-            console.log('[Playground] Processing SSE stream...');
-            
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) {
-                console.log('[Playground] SSE stream finished.');
-                break;
-              }
-              
-              const chunk = decoder.decode(value, { stream: true });
-              buffer += chunk;
-              
-              const lines = buffer.split('\n\n');
-              buffer = lines.pop() || '';
-              
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  try {
-                    const data = JSON.parse(line.slice(6));
-                    console.log('[Playground] SSE event received:', data);
-                    
-                    if (data.type === 'agentProgress') {
-                      addMessage({ 
-                        type: 'agentProgress', 
-                        content: data.content 
-                      });
-                    } else if (data.type === 'agentOutput') {
-                      const hasImages = data.imageUrls && data.imageUrls.length > 0;
-                      
-                      // Add the output message with appropriate subType
-                      addMessage({
-                        type: 'agentOutput',
-                        content: data.content,
-                        imageUrls: hasImages ? data.imageUrls : undefined,
-                        subType: hasImages ? 'image_generated' : undefined
-                      });
-                      
-                      // Add images to canvas if present
-                      if (hasImages) {
-                        console.log('[Playground] Adding generated images to canvas:', data.imageUrls);
-                        await addImagesToCanvas(data.imageUrls);
-                      }
-                    }
-                  } catch (parseError) {
-                    console.error('[Playground] Error parsing SSE data:', parseError);
-                  }
-                }
-              }
-            }
-          } catch (error: any) {
-            console.error('[Playground] Error during image generation:', error);
+          generateImage(userPrompt).catch(error => {
+            console.error('[Playground] Error generating image:', error);
             addMessage({
               type: 'agentOutput',
               content: `Error: ${error.message || 'Failed to generate image'}`
             });
-          } finally {
-            // Clean up localStorage flags
-            localStorage.removeItem("popmint-should-generate-image");
-            localStorage.removeItem("popmint-process-image");
-            localStorage.removeItem("popmint-image-generating");
-          }
-        } else if (useChatStore.getState().messages.length === 0) {
-          // Fallback to demo content if no initial message from localStorage and chat is empty
-          console.log('[Playground] No actionable prompt from localStorage, showing demo content.');
-          showDemoContent();
+          });
         }
       } catch (error) {
         console.error("[Playground] Error during initialization:", error);
@@ -181,8 +102,90 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
           type: 'agentOutput',
           content: `Error initializing playground: ${error instanceof Error ? error.message : 'Unknown error'}`
         });
-      } finally {
         setIsLoading(false);
+      }
+    };
+
+    // Helper function to generate images in the background
+    const generateImage = async (prompt: string) => {
+      try {
+        // Make API call to generate image
+        const response = await fetch('/api/agent/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        });
+        
+        console.log('[Playground] API response status:', response.status);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[Playground] Server error:', response.status, errorText);
+          throw new Error(`Server error: ${response.status} - ${errorText}`);
+        }
+        
+        // Process the SSE stream
+        const reader = response.body?.getReader();
+        if (!reader) {
+          console.error('[Playground] Could not read server response body.');
+          throw new Error('Could not read server response body');
+        }
+        
+        const decoder = new TextDecoder();
+        let buffer = '';
+        console.log('[Playground] Processing SSE stream...');
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log('[Playground] SSE stream finished.');
+            break;
+          }
+          
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+          
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                console.log('[Playground] SSE event received:', data);
+                
+                if (data.type === 'agentProgress') {
+                  addMessage({ 
+                    type: 'agentProgress', 
+                    content: data.content 
+                  });
+                } else if (data.type === 'agentOutput') {
+                  const hasImages = data.imageUrls && data.imageUrls.length > 0;
+                  
+                  // Add the output message with appropriate subType
+                  addMessage({
+                    type: 'agentOutput',
+                    content: data.content,
+                    imageUrls: hasImages ? data.imageUrls : undefined,
+                    subType: hasImages ? 'image_generated' : undefined
+                  });
+                  
+                  // Add images to canvas if present
+                  if (hasImages) {
+                    console.log('[Playground] Adding generated images to canvas:', data.imageUrls);
+                    await addImagesToCanvas(data.imageUrls);
+                  }
+                }
+              } catch (parseError) {
+                console.error('[Playground] Error parsing SSE data:', parseError);
+              }
+            }
+          }
+        }
+      } finally {
+        // Clean up localStorage flags
+        localStorage.removeItem("popmint-should-generate-image");
+        localStorage.removeItem("popmint-process-image");
+        localStorage.removeItem("popmint-image-generating");
       }
     };
 
@@ -241,44 +244,7 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
       }));
     };
 
-    // Helper function to show demo content
-    const showDemoContent = async () => {
-      addMessage({
-        type: "userInput",
-        content: "Create an ad for a mango flavored protein powder highlighting its freshness",
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      addMessage({ type: "agentProgress", content: "Analyzing your request..." });
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      addMessage({
-        type: "agentOutput",
-        content:
-          "There seems to be few issues with the generated adds\n\n1. The ad creatives are not matching the brand tone\n2. The ad creatives need to be 9:16 aspect ratio for Instagram\n3. The ad creatives need to be themed around Diwali\n\nI'll go ahead fix these and make variants",
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      addMessage({
-        type: "agentOutput",
-        subType: "image_generated",
-        content: "Great! Now I have fixed your ads and create 5 more variants",
-        imageUrls: [
-          "/image-1.png",
-          "/image-2.png",
-          "/image-3.png",
-          "/image-4.png"
-        ],
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      addMessage({
-        type: "agentOutput",
-        content:
-          "What do you think about the ads? If you want to try different concept, edit or want more variants, drop your thoughts in the chat ",
-      });
-    };
-
+    // Finish initialization
     initializePlayground().catch(error => {
       console.error("[Playground] Unhandled error:", error);
       setIsLoading(false);
