@@ -271,15 +271,16 @@ export default function Home() {
 
     try {
       // Check if this is an image generation request
-      const isImageRequest = inputValue.trim().toLowerCase().startsWith("/image") || 
-                             inputValue.trim().toLowerCase().includes("generate image");
+      // For our flow, we'll treat ALL prompts from the homepage as image generation requests
+      // This removes the need to detect specific keywords
+      const isImageRequest = true; // Force all submissions to generate images
       console.log('[HomePage] isImageRequest:', isImageRequest);
       
       // Generate a session ID for the playground
       const sessionId = Math.random().toString(36).substring(2, 9);
       console.log('[HomePage] Generated sessionId:', sessionId);
 
-      // Set project name from the input
+      // Generate a project name based on input
       let projectName = "Untitled Project";
       if (inputValue.trim()) {
         const words = inputValue.trim().split(/\s+/);
@@ -289,45 +290,48 @@ export default function Home() {
           projectName = `${firstThreeWords} ${uniqueId}`;
         }
       }
+      
+      // Store the project name
       localStorage.setItem("popmint-project-name", projectName);
       console.log('[HomePage] Stored popmint-project-name:', projectName);
 
-      // Get all uploaded image URLs
+      // Get image URLs from uploaded images
       const userUploadedImageUrls = uploadedImages.map(img => img.previewUrl);
       console.log('[HomePage] User uploaded image URLs:', userUploadedImageUrls);
 
-      // Create the initial message
+      // Create initial message object for the chat panel
       const initialMessagePayload = {
         type: "userInput",
         content: inputValue.trim(), // Use trimmed input for content
         imageUrls: userUploadedImageUrls 
       };
+      
+      // Store the initial message
       localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
       console.log('[HomePage] Stored popmint-initial-message:', JSON.stringify(initialMessagePayload));
       
-      // Set flag to indicate if this is an image generation request
-      const shouldProcessImage = isImageRequest && !!inputValue.trim();
-      localStorage.setItem("popmint-should-generate-image", shouldProcessImage ? "true" : "false");
-      console.log('[HomePage] Should generate image:', shouldProcessImage);
+      // Flag for image generation - ALWAYS set to true for homepage submissions
+      // This ensures every submission from homepage triggers image generation
+      localStorage.setItem("popmint-process-image", "true");
+      console.log('[HomePage] Stored popmint-process-image: true (forced for all homepage submissions)');
       
-      // Store the raw input for processing
-      const promptToProcess = inputValue.trim();
-      localStorage.setItem("popmint-prompt-to-process", promptToProcess);
-      console.log('[HomePage] Stored prompt:', promptToProcess);
+      // Store the raw prompt for processing
+      localStorage.setItem("popmint-prompt-to-process", inputValue.trim());
+      console.log('[HomePage] Stored popmint-prompt-to-process:', inputValue.trim());
       
-      // Clean up any old localStorage items
+      // Clear any legacy items
       localStorage.removeItem("popmint-prompt");
       localStorage.removeItem("popmint-images");
-      localStorage.removeItem("popmint-process-image");
-      localStorage.removeItem("popmint-image-generating");
-      console.log('[HomePage] Cleaned up localStorage');
+      console.log('[HomePage] Cleared legacy localStorage items.');
 
-      // Navigate to the playground with the session ID
+      // Navigate to playground with session ID
       console.log('[HomePage] Navigating to playground with sessionId:', sessionId);
       router.push(`/playground/${sessionId}`);
     } catch (error) {
       console.error("[HomePage] Error in handleSubmit:", error);
       setIsSubmitting(false);
+      
+      // Show error message to user
       alert("An error occurred. Please try again.");
     }
   };
@@ -445,7 +449,7 @@ export default function Home() {
       {/* Noise texture overlay */}
       <div className="pointer-events-none absolute inset-0 z-100 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
       
-      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col z-100 min-h-[calc(100%-80px)]">
+      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
         {/* Header - Sticky */}
         <header className="flex justify-between items-center sticky top-0 z-10">
           <div className="flex items-center gap-2">
