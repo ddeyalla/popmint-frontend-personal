@@ -16,6 +16,8 @@ import {
   Undo2,
   Redo2,
   MousePointer2,
+  Link,
+  X,
 } from "lucide-react"
 import { useCanvasStore } from "@/store/canvasStore"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -41,6 +43,10 @@ function CanvasToolbarBase() {
     deleteObject,
   } = useCanvasStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [urlInputOpen, setUrlInputOpen] = useState(false)
+  const [imageUrl, setImageUrl] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const currentTool = TOOL_OPTIONS.find((t) => t.value === toolMode) || TOOL_OPTIONS[0]
 
   // Track the current import row
@@ -116,6 +122,61 @@ function CanvasToolbarBase() {
     }
     processFile(0)
   }, [addImage]);
+
+  // URL image upload handler
+  const handleUrlImageUpload = useCallback(async () => {
+    if (!imageUrl.trim()) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      // Create a promise to handle the image loading
+      const imageLoaded = new Promise<HTMLImageElement>((resolve, reject) => {
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Failed to load image from URL"));
+      });
+      
+      // Set the source to start loading
+      img.src = imageUrl;
+      
+      // Wait for the image to load
+      const loadedImg = await imageLoaded;
+      
+      // Calculate position based on import position tracking
+      const col = importColRef.current;
+      const row = importRowRef.current;
+      const x = 20 + (col * (180 + IMAGE_SPACING));
+      const y = 20 + (row * IMAGE_ROW_HEIGHT);
+      
+      // Add the image to the canvas
+      addImage(imageUrl, x, y);
+      
+      // Update position for next import
+      importColRef.current = (col + 1) % IMAGES_PER_ROW;
+      if (importColRef.current === 0) {
+        importRowRef.current = row + 1;
+      }
+      
+      // Reset the input and close the popover
+      setImageUrl("");
+      setUrlInputOpen(false);
+    } catch (err) {
+      setError("Failed to load image. Please check the URL and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [imageUrl, addImage, importColRef, importRowRef, IMAGES_PER_ROW, IMAGE_SPACING, IMAGE_ROW_HEIGHT]);
+
+  // Handle input enter key press
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleUrlImageUpload();
+    }
+  }, [handleUrlImageUpload]);
 
   // Memoize the tool selection handler
   const handleToolSelect = useCallback((toolValue: 'move' | 'hand' | 'scale') => {
@@ -200,6 +261,64 @@ function CanvasToolbarBase() {
             <p>Upload Image</p>
           </TooltipContent>
         </Tooltip>
+        {/* URL Image */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full hover:bg-gray-100"
+              onClick={() => setUrlInputOpen(true)}
+              aria-label="Add Image from URL"
+            >
+              <Link className="h-5 w-5 text-gray-700" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Add Image from URL</p>
+          </TooltipContent>
+        </Tooltip>
+        {/* URL Input Modal */}
+        {urlInputOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-4 w-80 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm">Add Image from URL</h4>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-5 w-5" 
+                  onClick={() => setUrlInputOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <div className="relative">
+                  <input
+                    type="url"
+                    placeholder="https://example.com/image.jpg"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    disabled={isLoading}
+                    className="w-full p-2 border rounded-md pr-10"
+                  />
+                </div>
+                {error && <p className="text-xs text-red-500">{error}</p>}
+                <div className="flex justify-end">
+                  <Button 
+                    size="sm"
+                    onClick={handleUrlImageUpload}
+                    disabled={isLoading || !imageUrl.trim()}
+                  >
+                    {isLoading ? "Loading..." : "Add Image"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Text Tool */}
         <Tooltip>
           <TooltipTrigger asChild>
