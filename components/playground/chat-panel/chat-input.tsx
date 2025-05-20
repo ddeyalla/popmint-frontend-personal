@@ -155,15 +155,13 @@ export function ChatInput() {
               } 
               else if (data.type === 'agentOutput') {
                 if (data.imageUrls && data.imageUrls.length > 0) {
-                  // Add chat message with appropriate subType for image generation
+                  // Add chat message with only text content first so UI updates
                   addMessage({
                     type: 'agentOutput',
-                    content: data.content,
-                    imageUrls: data.imageUrls,
-                    subType: 'image_generated' // Crucial! This tells the UI to treat it as a generated image
+                    content: data.content
                   });
                   
-                  // DALL-E image: add to canvas
+                  // DALL-E image: add to canvas, do NOT add imageUrls to chat message
                   await Promise.all(data.imageUrls.map(async (url: string, i: number) => {
                     try {
                       // Skip if the image already exists on canvas
