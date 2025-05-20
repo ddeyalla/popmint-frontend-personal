@@ -32,17 +32,20 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 // Mock fetch for image generation
-global.fetch = jest.fn(() => Promise.resolve({
+const mockResponse = {
   ok: true,
   status: 200,
+  statusText: 'OK',
+  headers: new Headers(),
   json: () => Promise.resolve({
     success: true,
     imageUrl: 'https://example.com/generated-image.png'
   }),
+  text: () => Promise.resolve(''),
   body: {
     getReader: () => ({
       read: jest.fn().mockImplementation(() => {
-        // Return a promise that simulates SSE data followed by done
+        // First call returns data, second call returns done
         return Promise.resolve({
           done: false,
           value: new TextEncoder().encode(
@@ -54,7 +57,10 @@ global.fetch = jest.fn(() => Promise.resolve({
       cancel: jest.fn(),
     }),
   },
-}));
+};
+
+// Cast the mock to unknown first and then to Response to avoid TypeScript errors
+global.fetch = jest.fn().mockImplementation(() => Promise.resolve(mockResponse as unknown as Response));
 
 describe('Image Generation Flow', () => {
   beforeEach(() => {
