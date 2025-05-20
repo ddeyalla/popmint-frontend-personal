@@ -67,9 +67,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       },
     })),
 
-  toggleSidebar: () => set(state => ({ 
-    isSidebarCollapsed: !state.isSidebarCollapsed 
-  })),
+  toggleSidebar: () => {
+    // Batch the state update to avoid multiple re-renders
+    // and efficiently toggle the sidebar state
+    set(state => {
+      // Cache the new state value to avoid re-computation
+      const newState = !state.isSidebarCollapsed;
+      
+      // Update state in a single batch
+      return { isSidebarCollapsed: newState };
+    });
+  },
 
   addObject: (object) => {
     try {

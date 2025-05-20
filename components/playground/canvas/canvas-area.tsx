@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react"
 import { Stage, Layer, Group, Transformer } from "react-konva"
 import Konva from 'konva'; // Import Konva namespace for types
 import { KonvaEventObject } from 'konva/lib/Node'; // Import specific event type
@@ -61,57 +61,52 @@ export function CanvasArea() {
   const lastPinchDistance = useRef<number | null>(null);
   const lastPinchMidpoint = useRef<{ x: number; y: number } | null>(null);
 
+  // Create a debounced resize handler for more efficient handling
+  const debouncedResize = useCallback((entries: ResizeObserverEntry[] = []) => {
+    if (!containerRef.current || !stageRef.current) return;
+    
+    const width = containerRef.current.offsetWidth || 800;
+    const height = containerRef.current.offsetHeight || 600;
+    
+    // Skip unnecessary logging in production
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[CanvasArea] Container Dimensions:', { width, height, isSidebarCollapsed });
+    }
+    
+    setStageSize({ width, height });
+    stageRef.current.width(width);
+    stageRef.current.height(height);
+    stageRef.current.batchDraw();
+  }, [isSidebarCollapsed]);
+  
   // Handle stage resize with ResizeObserver for more accurate size tracking
   useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current && stageRef.current) {
-        const width = containerRef.current.offsetWidth || 800;
-        const height = containerRef.current.offsetHeight || 600;
-
-        // Log dimensions when ResizeObserver triggers update
-        console.log('[CanvasArea] ResizeObserver - Container Dimensions:', { width, height, isSidebarCollapsed });
-        
-        setStageSize({ width, height });
-        stageRef.current.width(width);
-        stageRef.current.height(height);
-        stageRef.current.batchDraw();
-      }
-    }
-
-    updateSize(); // Initial size
-
-    const observer = new ResizeObserver(updateSize);
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    // Listen to window resize as a fallback or for parent-level resizes
-    window.addEventListener("resize", updateSize);
-
+    if (!containerRef.current) return;
+    
+    // Create the observer with the debounced handler
+    const observer = new ResizeObserver((entries) => {
+      // Use requestAnimationFrame to batch DOM measurements and updates
+      requestAnimationFrame(() => debouncedResize(entries));
+    });
+    
+    // Initial size update - directly call our handler once
+    debouncedResize([]);
+    
+    // Start observing
+    observer.observe(containerRef.current);
+    
+    // Listen for our custom canvas-resize event to handle sidebar toggling
+    const handleCanvasResize = () => {
+      requestAnimationFrame(() => debouncedResize([]));
+    };
+    
+    window.addEventListener('canvas-resize', handleCanvasResize);
+    
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", updateSize);
+      window.removeEventListener('canvas-resize', handleCanvasResize);
     };
-  }, [isSidebarCollapsed]); // Add isSidebarCollapsed to dependencies to re-run observer setup if needed
-
-  // This useEffect is now primarily to ensure a redraw/re-evaluation might trigger ResizeObserver
-  // if the parent layout changes due to sidebar toggling. The actual sizing is handled by ResizeObserver.
-  useEffect(() => {
-    // Log when this effect runs due to sidebar change
-    console.log('[CanvasArea] Sidebar state changed, isSidebarCollapsed:', isSidebarCollapsed);
-    // We could potentially force a redraw or re-check here if ResizeObserver isn't reliable enough,
-    // but let's see if ResizeObserver alone handles it with the dependency change.
-    // For instance, a slight delay and then calling updateSize from the first useEffect if necessary:
-    // const timerId = setTimeout(() => {
-    //   if (containerRef.current) {
-    //      console.log("[CanvasArea] Forcing size re-check after sidebar toggle delay");
-    //      // Calling the updateSize function from the other effect or a shared one
-    //      // This would require updateSize to be defined outside or passed if effects are separate
-    //   }
-    // }, 360); // Slightly longer than parent transition
-    // return () => clearTimeout(timerId);
-
-  }, [isSidebarCollapsed]);
+  }, [debouncedResize]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -249,55 +244,15 @@ export function CanvasArea() {
     }
   }, [objects.length, isInitialized, messages])
 
-  const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
+  // Convert regular event handlers to useCallback for better performance
+  const handleStageClick = useCallback((e: KonvaEventObject<MouseEvent>) => {
     if (e.target === e.currentTarget) {
       clearSelection()
     }
-  }
+  }, [clearSelection]);
 
-  // Add cursor style management
-  useEffect(() => {
-    if (!stageRef.current) return;
-    const stage = stageRef.current;
-    const container = stage.container();
-
-    // Set initial cursor based on tool mode
-    switch (toolMode) {
-      case 'move':
-        container.style.cursor = 'default';
-        break;
-      case 'hand':
-        container.style.cursor = 'grab';
-        break;
-      case 'scale':
-        container.style.cursor = 'nesw-resize';
-        break;
-      default:
-        container.style.cursor = 'default';
-    }
-
-    // Handle cursor changes during interactions
-    stage.on('mousedown touchstart', () => {
-      if (toolMode === 'hand') {
-        container.style.cursor = 'grabbing';
-      }
-    });
-
-    stage.on('mouseup touchend', () => {
-      if (toolMode === 'hand') {
-        container.style.cursor = 'grab';
-      }
-    });
-
-    // Cleanup
-    return () => {
-      stage.off('mousedown touchstart mouseup touchend');
-      container.style.cursor = 'default';
-    };
-  }, [toolMode]);
-
-  // Tracked object and state for Alt+drag duplication
-  const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+  // Optimize mouse handlers with useCallback
+  const handleMouseDown = useCallback((e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
     if (!stage) return;
 
@@ -310,9 +265,9 @@ export function CanvasArea() {
       panStart.current = stage.getPointerPosition();
       lastPointer.current = stage.getPointerPosition();
     }
-  };
+  }, [toolMode, setIsPanning]);
 
-  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+  const handleMouseMove = useCallback((e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
     if (!stage) return;
 
@@ -347,9 +302,9 @@ export function CanvasArea() {
         });
       }
     }
-  };
+  }, [toolMode, isPanning, updateStageOffset, duplicationActive, duplicationData, selectedObjectIds, zoomLevel, objects, updateObject]);
 
-  const handleMouseUp = (e: KonvaEventObject<MouseEvent>) => {
+  const handleMouseUp = useCallback((e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
     if (!stage) return;
 
@@ -367,10 +322,10 @@ export function CanvasArea() {
       setDuplicationOriginalId(null);
       setDuplicationData(null);
     }
-  };
+  }, [toolMode, duplicationActive, setIsPanning, setDuplicationActive, setDuplicationOriginalId, setDuplicationData]);
 
-  // Update touch handlers to respect tool mode
-  const handleTouchStart = (e: KonvaEventObject<TouchEvent>) => {
+  // Optimize touch handlers with useCallback
+  const handleTouchStart = useCallback((e: KonvaEventObject<TouchEvent>) => {
     const stage = e.target.getStage();
     if (!stage) return;
 
@@ -386,10 +341,9 @@ export function CanvasArea() {
       lastPointer.current = { ...mid };
       stage.container().style.cursor = 'grabbing';
     }
-  };
+  }, [toolMode, setTouchPan]);
 
-  // Enhanced touch move for pinch-to-zoom
-  const handleTouchMove = (e: KonvaEventObject<TouchEvent>) => {
+  const handleTouchMove = useCallback((e: KonvaEventObject<TouchEvent>) => {
     if (!containerRef.current) return;
     const stage = e.target.getStage();
     if (!stage) return;
@@ -450,21 +404,18 @@ export function CanvasArea() {
       updateStageOffset(delta);
       lastPointer.current = mid;
     }
-  };
+  }, [touchPan, zoomLevel, stageOffset, setZoomLevel, setStageOffset, updateStageOffset, containerRef]);
 
-  // Reset pinch state on touch end
-  const handleTouchEnd = (e: KonvaEventObject<TouchEvent>) => {
+  const handleTouchEnd = useCallback(() => {
     setTouchPan(false);
     panStart.current = null;
     lastPointer.current = null;
     lastPinchDistance.current = null;
     lastPinchMidpoint.current = null;
-  };
+  }, [setTouchPan]);
 
-  /**
-   * Handle selection with Option/Alt key for duplication
-   */
-  const handleSelect = (id: string, e?: KonvaEventObject<MouseEvent | TouchEvent>) => {
+  // Optimize selection handler with useCallback
+  const handleSelect = useCallback((id: string, e?: KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (!e) return;
 
     // For Alt/Option + click: Duplicate the object and start dragging the duplicate
@@ -510,12 +461,10 @@ export function CanvasArea() {
     } else {
       selectObject([id]);
     }
-  };
+  }, [isAltKeyPressed, duplicateObject, objects, setDuplicationActive, setDuplicationOriginalId, setDuplicationData, selectedObjectIds, selectObject]);
   
-  /**
-   * Handle group drag end
-   */
-  const handleGroupDragEnd = (e: KonvaEventObject<DragEvent>) => {
+  // Optimize transformation handlers with useCallback
+  const handleGroupDragEnd = useCallback((e: KonvaEventObject<DragEvent>) => {
     const groupNode = e.target as Konva.Group // e.target is the Konva.Group
     if (!groupNode) return
 
@@ -533,12 +482,9 @@ export function CanvasArea() {
     })
     groupNode.position({ x: 0, y: 0 }) // Reset group position
     groupNode.getStage()?.draggable(true) // Re-enable stage draggable
-  }
+  }, [selectedObjectIds, objects]);
   
-  /**
-   * Handle group transform end (also used for single object transform via Transformer)
-   */
-  const handleGroupTransformEnd = (e: KonvaEventObject<Event>) => {
+  const handleGroupTransformEnd = useCallback((e: KonvaEventObject<Event>) => {
     const transformer = transformerRef.current;
     if (!transformer) return;
 
@@ -558,68 +504,10 @@ export function CanvasArea() {
         }
     });
     transformer.getStage()?.draggable(true);
-  }
+  }, [objects]);
 
-  // Add the new useEffect for transformer nodes
-  useEffect(() => {
-    if (!transformerRef.current || !stageRef.current) return;
-
-    setTimeout(() => {
-      if (!transformerRef.current || !stageRef.current) return;
-
-      if (selectedObjectIds.length === 1) {
-        const node = stageRef.current.findOne(`#${selectedObjectIds[0]}`);
-        if (node) {
-          transformerRef.current.nodes([node]);
-        } else {
-          transformerRef.current.nodes([]);
-        }
-      } else if (selectedObjectIds.length > 1 && groupRef.current) {
-        transformerRef.current.nodes([groupRef.current]);
-      } else {
-        transformerRef.current.nodes([]);
-      }
-      transformerRef.current.getLayer()?.batchDraw();
-    }, 0);
-  }, [selectedObjectIds, stageRef.current, groupRef.current]);
-
-  const zoomTools = [
-    { icon: <ZoomOut className="h-4 w-4 text-gray-700" /> },
-    { icon: <ZoomIn className="h-4 w-4 text-gray-700" /> },
-    { icon: <Layout className="h-4 w-4 text-gray-700" /> },
-    { icon: <Maximize className="h-4 w-4 text-gray-700" /> },
-  ]
-
-  /**
-   * Zoom to fit all objects within the visible canvas area
-   */
-  const onFitToScreen = () => {
-    if (!stageRef.current || objects.length === 0 || !containerRef.current) return
-    // Calculate bounding box of all objects
-    const minX = Math.min(...objects.map((obj) => obj.x))
-    const minY = Math.min(...objects.map((obj) => obj.y))
-    const maxX = Math.max(...objects.map((obj) => (obj.x + (obj.width || 0))))
-    const maxY = Math.max(...objects.map((obj) => (obj.y + (obj.height || 0))))
-    const contentWidth = maxX - minX
-    const contentHeight = maxY - minY
-    const padding = 40 // px
-    const availableWidth = (containerRef.current.offsetWidth || 800) - padding * 2
-    const availableHeight = (containerRef.current.offsetHeight || 600) - padding * 2
-    // Calculate scale to fit
-    const scale = Math.min(
-      availableWidth / (contentWidth || 1),
-      availableHeight / (contentHeight || 1),
-      2 // max zoom
-    )
-    // Center the content
-    const offsetX = padding + (availableWidth - contentWidth * scale) / 2 - minX * scale
-    const offsetY = padding + (availableHeight - contentHeight * scale) / 2 - minY * scale
-    setZoomLevel(Number(scale.toFixed(2)))
-    setStageOffset({ x: offsetX, y: offsetY })
-  }
-
-  // Add new handler for wheel zoom (mouse wheel + Ctrl)
-  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
+  // Optimize the wheel handler with useCallback
+  const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
     // Only trigger zoom if Ctrl key is pressed (similar to Figma)
     if (!e.evt.ctrlKey) return;
     
@@ -657,7 +545,63 @@ export function CanvasArea() {
     // Update zoom level and offset
     setZoomLevel(newScale);
     setStageOffset(newPos);
-  };
+  }, [zoomLevel, stageOffset, setZoomLevel, setStageOffset]);
+
+  // Optimize fitToScreen with useCallback
+  const onFitToScreen = useCallback(() => {
+    if (!stageRef.current || objects.length === 0 || !containerRef.current) return
+    // Calculate bounding box of all objects
+    const minX = Math.min(...objects.map((obj) => obj.x))
+    const minY = Math.min(...objects.map((obj) => obj.y))
+    const maxX = Math.max(...objects.map((obj) => (obj.x + (obj.width || 0))))
+    const maxY = Math.max(...objects.map((obj) => (obj.y + (obj.height || 0))))
+    const contentWidth = maxX - minX
+    const contentHeight = maxY - minY
+    const padding = 40 // px
+    const availableWidth = (containerRef.current.offsetWidth || 800) - padding * 2
+    const availableHeight = (containerRef.current.offsetHeight || 600) - padding * 2
+    // Calculate scale to fit
+    const scale = Math.min(
+      availableWidth / (contentWidth || 1),
+      availableHeight / (contentHeight || 1),
+      2 // max zoom
+    )
+    // Center the content
+    const offsetX = padding + (availableWidth - contentWidth * scale) / 2 - minX * scale
+    const offsetY = padding + (availableHeight - contentHeight * scale) / 2 - minY * scale
+    setZoomLevel(Number(scale.toFixed(2)))
+    setStageOffset({ x: offsetX, y: offsetY })
+  }, [objects, setZoomLevel, setStageOffset, containerRef, stageRef]);
+
+  // Add the new useEffect for transformer nodes
+  useEffect(() => {
+    if (!transformerRef.current || !stageRef.current) return;
+
+    setTimeout(() => {
+      if (!transformerRef.current || !stageRef.current) return;
+
+      if (selectedObjectIds.length === 1) {
+        const node = stageRef.current.findOne(`#${selectedObjectIds[0]}`);
+        if (node) {
+          transformerRef.current.nodes([node]);
+        } else {
+          transformerRef.current.nodes([]);
+        }
+      } else if (selectedObjectIds.length > 1 && groupRef.current) {
+        transformerRef.current.nodes([groupRef.current]);
+      } else {
+        transformerRef.current.nodes([]);
+      }
+      transformerRef.current.getLayer()?.batchDraw();
+    }, 0);
+  }, [selectedObjectIds, stageRef.current, groupRef.current]);
+
+  const zoomTools = [
+    { icon: <ZoomOut className="h-4 w-4 text-gray-700" /> },
+    { icon: <ZoomIn className="h-4 w-4 text-gray-700" /> },
+    { icon: <Layout className="h-4 w-4 text-gray-700" /> },
+    { icon: <Maximize className="h-4 w-4 text-gray-700" /> },
+  ]
 
   return (
     <div

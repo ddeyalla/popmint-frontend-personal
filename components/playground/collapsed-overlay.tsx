@@ -12,7 +12,7 @@ export function CollapsedOverlay({ position = "right" }: { position?: "left" | "
   if (!isSidebarCollapsed) return null
 
   return (
-    <div className={`absolute top-2 ${position === "left" ? "left-2" : "right-2"} flex items-center gap-2 z-50`}>
+    <div className={`absolute top-4 ${position === "left" ? "left-4" : "right-4"} flex items-center gap-2 z-50`}>
       <div className="flex items-center gap-2 bg-white rounded-full px-3 py-0 shadow-[0px_1px_3px_0px_rgba(0,0,0,0.15),0px_0px_0.5px_0px_rgba(0,0,0,0.30)]">
         {/* Logo + Popmint */}
         <div className="flex items-center gap-1.5 px-2py-2">
