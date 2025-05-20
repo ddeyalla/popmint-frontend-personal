@@ -68,14 +68,35 @@ export function CanvasArea() {
     const width = containerRef.current.offsetWidth || 800;
     const height = containerRef.current.offsetHeight || 600;
     
-    // Skip unnecessary logging in production
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[CanvasArea] Container Dimensions:', { width, height, isSidebarCollapsed });
+    // Calculate responsive dimensions
+    const aspectRatio = 16 / 9; // Maintain 16:9 aspect ratio
+    let finalWidth = width;
+    let finalHeight = height;
+
+    // For mobile screens, prioritize height
+    if (window.innerWidth <= 768) {
+      finalHeight = height;
+      finalWidth = Math.min(width, height * aspectRatio);
+    } else {
+      // For larger screens, use available space while maintaining aspect ratio
+      if (width / height > aspectRatio) {
+        finalHeight = height;
+        finalWidth = height * aspectRatio;
+      } else {
+        finalWidth = width;
+        finalHeight = width / aspectRatio;
+      }
     }
     
-    setStageSize({ width, height });
-    stageRef.current.width(width);
-    stageRef.current.height(height);
+    // For 4K screens, ensure minimum dimensions
+    const minWidth = window.innerWidth >= 3840 ? 1920 : 800;
+    const minHeight = window.innerWidth >= 3840 ? 1080 : 600;
+    finalWidth = Math.max(finalWidth, minWidth);
+    finalHeight = Math.max(finalHeight, minHeight);
+    
+    setStageSize({ width: finalWidth, height: finalHeight });
+    stageRef.current.width(finalWidth);
+    stageRef.current.height(finalHeight);
     stageRef.current.batchDraw();
   }, [isSidebarCollapsed]);
   
@@ -606,16 +627,24 @@ export function CanvasArea() {
   return (
     <div
       className={cn(
-        "relative w-full h-full bg-white overflow-hidden", // Always fill parent, prevent overflow
-        isSidebarCollapsed ? "fixed inset-0 z-30" : "rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]"
+        "relative w-full h-full bg-white overflow-hidden", 
+        isSidebarCollapsed ? "fixed inset-0 z-30" : "rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]",
+        // Add responsive classes
+        "md:p-4", // Add padding on larger screens
+        "2xl:p-6", // More padding on 2K+ screens
+        "4xl:p-8", // Even more padding on 4K screens
       )}
     >
       {/* Dot grid overlay */}
       <div className="pointer-events-none absolute rounded-[10px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]"></div>
-      {/* Outer background is now plain white */}
+      
+      {/* Canvas container with responsive sizing */}
       <div
         key={isSidebarCollapsed ? 'collapsed' : 'expanded'}
-        className="w-full h-full overflow-hidden" // Fill parent, prevent flex-driven expansion
+        className={cn(
+          "w-full h-full overflow-hidden",
+          "flex items-center justify-center" // Center canvas in container
+        )}
         style={{ overflow: "hidden" }}
         ref={containerRef}
       >
@@ -635,8 +664,13 @@ export function CanvasArea() {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            onWheel={handleWheel} // Add wheel event handler for Ctrl+wheel zoom
-            draggable={false} // We handle dragging manually based on tool mode
+            onWheel={handleWheel}
+            draggable={false}
+            className={cn(
+              "transition-transform duration-300 ease-in-out",
+              "md:rounded-xl", // Rounded corners on larger screens
+              "md:shadow-lg" // Shadow on larger screens
+            )}
           >
             <Layer>
               {/* Multi-select: render unselected objects, and selected objects inside a draggable group */}
