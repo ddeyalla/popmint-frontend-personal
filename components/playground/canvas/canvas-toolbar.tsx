@@ -195,189 +195,197 @@ function CanvasToolbarBase() {
 
   return (
     <TooltipProvider>
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] flex items-center p-1.5 z-50">
-        {/* Cursor Dropdown */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-16 rounded-full hover:bg-gray-100 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-600"
-            onClick={toggleDropdown}
-            aria-label="Select Tool"
-            aria-haspopup="listbox"
-            aria-expanded={dropdownOpen}
-          >
-            {currentTool.icon && <currentTool.icon className="h-5 w-5 text-gray-700" />}
-            <ChevronDown className="h-4 w-4 ml-1 text-gray-400" />
-          </Button>
-          {dropdownOpen && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-4 w-40 bg-white rounded-3xl shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] z-50 animate-fade-in">
-              <ul className="p-1" role="listbox" aria-label="Tool selection">
-                {TOOL_OPTIONS.map((tool) => (
-                  <li key={tool.value} role="option" aria-selected={toolMode === tool.value}>
-                    <button
-                      className={cn(
-                        "flex items-center w-full px-2 py-2 text-sm transition-colors duration-100 rounded-4xl",
-                        toolMode === tool.value
-                          ? "bg-blue-100 text-blue-500 font-medium"
-                          : "hover:bg-blue-50 focus:bg-gray-100 text-gray-700"
-                      )}
-                      onClick={() => handleToolSelect(tool.value as 'move'|'hand'|'scale')}
-                      tabIndex={0}
-                    >
-                      <tool.icon className="h-4 w-4 mr-2" />
-                      {tool.label}
-                      <span className="ml-auto text-xs text-gray-400">{tool.shortcut}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-        <div className="w-px h-6 bg-gray-200 mx-2" />
-        {/* Upload Image */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full hover:bg-gray-100"
-              onClick={handleUploadClick}
-              aria-label="Upload Image"
-            >
-              <ImageIcon className="h-5 w-5 text-gray-700" />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-                multiple
-              />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Upload Image</p>
-          </TooltipContent>
-        </Tooltip>
-        {/* URL Image */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full hover:bg-gray-100"
-              onClick={() => setUrlInputOpen(true)}
-              aria-label="Add Image from URL"
-            >
-              <Link className="h-5 w-5 text-gray-700" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Add Image from URL</p>
-          </TooltipContent>
-        </Tooltip>
-        {/* URL Input Modal */}
+      {/* Wrap the toolbar and modal in a relative container */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-50">
+        {/* URL Input Modal - positioned above the toolbar */}
         {urlInputOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-4 w-80 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium text-sm">Add Image from URL</h4>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-5 w-5" 
-                  onClick={() => setUrlInputOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+          <div className="bg-white rounded-lg p-4 w-80 space-y-3 shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] mb-2 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm">Add Image from URL</h4>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-5 w-5" 
+                onClick={() => setUrlInputOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <div className="relative">
+                <input
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  disabled={isLoading}
+                  className="w-full p-2 border rounded-md pr-10"
+                  autoFocus
+                />
               </div>
-              <div className="space-y-2">
-                <div className="relative">
-                  <input
-                    type="url"
-                    placeholder="https://example.com/image.jpg"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    disabled={isLoading}
-                    className="w-full p-2 border rounded-md pr-10"
-                  />
-                </div>
-                {error && <p className="text-xs text-red-500">{error}</p>}
-                <div className="flex justify-end">
-                  <Button 
-                    size="sm"
-                    onClick={handleUrlImageUpload}
-                    disabled={isLoading || !imageUrl.trim()}
-                  >
-                    {isLoading ? "Loading..." : "Add Image"}
-                  </Button>
-                </div>
+              {error && <p className="text-xs text-red-500">{error}</p>}
+              <div className="flex justify-end">
+                <Button 
+                  size="sm"
+                  onClick={handleUrlImageUpload}
+                  disabled={isLoading || !imageUrl.trim()}
+                >
+                  {isLoading ? "Loading..." : "Add Image"}
+                </Button>
               </div>
             </div>
           </div>
         )}
-        {/* Text Tool */}
-        <Tooltip>
-          <TooltipTrigger asChild>
+
+        {/* Actual Toolbar */}
+        <div className="bg-white rounded-full shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] flex items-center p-1.5">
+          {/* Cursor Dropdown */}
+          <div className="relative">
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 rounded-full hover:bg-gray-100"
-              onClick={handleAddText}
-              aria-label="Add Text"
+              className="h-8 w-16 rounded-full hover:bg-gray-100 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-600"
+              onClick={toggleDropdown}
+              aria-label="Select Tool"
+              aria-haspopup="listbox"
+              aria-expanded={dropdownOpen}
             >
-              <Type className="h-5 w-5 text-gray-700" />
+              {currentTool.icon && <currentTool.icon className="h-5 w-5 text-gray-700" />}
+              <ChevronDown className="h-4 w-4 ml-1 text-gray-400" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Add Text</p>
-          </TooltipContent>
-        </Tooltip>
-        <div className="w-px h-6 bg-gray-200 mx-2" />
-        {/* Undo/Redo */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={undo} className="h-9 w-9 rounded-full hover:bg-gray-100" aria-label="Undo">
-              <Undo2 className="h-5 w-5 text-gray-700" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Undo (Ctrl+Z)</p>
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={redo} className="h-9 w-9 rounded-full hover:bg-gray-100" aria-label="Redo">
-              <Redo2 className="h-5 w-5 text-gray-700" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Redo (Ctrl+Y)</p>
-          </TooltipContent>
-        </Tooltip>
-        {selectedObjectIds.length > 0 && (
-          <>
-            <div className="w-px h-6 bg-gray-200 mx-2" />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleDeleteSelected}
-                  className="h-9 w-9 rounded-full hover:bg-red-100 text-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete Selected (Delete)</p>
-              </TooltipContent>
-            </Tooltip>
-          </>
-        )}
+            {dropdownOpen && (
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-4 w-40 bg-white rounded-3xl shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] z-10 animate-fade-in"> {/* Ensure dropdown is above modal if both open */}
+                <ul className="p-1" role="listbox" aria-label="Tool selection">
+                  {TOOL_OPTIONS.map((tool) => (
+                    <li key={tool.value} role="option" aria-selected={toolMode === tool.value}>
+                      <button
+                        className={cn(
+                          "flex items-center w-full px-2 py-2 text-sm transition-colors duration-100 rounded-4xl",
+                          toolMode === tool.value
+                            ? "bg-blue-100 text-blue-500 font-medium"
+                            : "hover:bg-blue-50 focus:bg-gray-100 text-gray-700"
+                        )}
+                        onClick={() => handleToolSelect(tool.value as 'move'|'hand'|'scale')}
+                        tabIndex={0}
+                      >
+                        <tool.icon className="h-4 w-4 mr-2" />
+                        {tool.label}
+                        <span className="ml-auto text-xs text-gray-400">{tool.shortcut}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <div className="w-px h-6 bg-gray-200 mx-2" />
+          {/* Upload Image */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full hover:bg-gray-100"
+                onClick={handleUploadClick}
+                aria-label="Upload Image"
+              >
+                <ImageIcon className="h-5 w-5 text-gray-700" />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  multiple
+                />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Upload Image</p>
+            </TooltipContent>
+          </Tooltip>
+          {/* URL Image */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full hover:bg-gray-100"
+                onClick={() => {
+                  setUrlInputOpen(prev => !prev); // Toggle the URL input
+                  setDropdownOpen(false); // Close cursor dropdown if open
+                }}
+                aria-label="Add Image from URL"
+              >
+                <Link className="h-5 w-5 text-gray-700" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Add Image from URL</p>
+            </TooltipContent>
+          </Tooltip>
+          {/* Text Tool */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full hover:bg-gray-100"
+                onClick={handleAddText}
+                aria-label="Add Text"
+              >
+                <Type className="h-5 w-5 text-gray-700" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Add Text</p>
+            </TooltipContent>
+          </Tooltip>
+          <div className="w-px h-6 bg-gray-200 mx-2" />
+          {/* Undo/Redo */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={undo} className="h-9 w-9 rounded-full hover:bg-gray-100" aria-label="Undo">
+                <Undo2 className="h-5 w-5 text-gray-700" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Undo (Ctrl+Z)</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={redo} className="h-9 w-9 rounded-full hover:bg-gray-100" aria-label="Redo">
+                <Redo2 className="h-5 w-5 text-gray-700" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Redo (Ctrl+Y)</p>
+            </TooltipContent>
+          </Tooltip>
+          {selectedObjectIds.length > 0 && (
+            <>
+              <div className="w-px h-6 bg-gray-200 mx-2" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleDeleteSelected}
+                    className="h-9 w-9 rounded-full hover:bg-red-100 text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete Selected (Delete)</p>
+                </TooltipContent>
+              </Tooltip>
+            </>
+          )}
+        </div>
       </div>
     </TooltipProvider>
   )
