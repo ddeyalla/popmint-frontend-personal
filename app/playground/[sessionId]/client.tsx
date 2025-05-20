@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatPanel } from "@/components/playground/chat-panel/chat-panel";
 import { CanvasArea } from "@/components/playground/canvas/canvas-area";
 import { useChatStore } from "@/store/chatStore";
 import { useCanvasStore } from "@/store/canvasStore";
+import { CollapsedOverlay } from "@/components/playground/collapsed-overlay";
+import { cn } from "@/lib/utils";
+
+
 
 interface ClientSidePlaygroundProps {
   sessionId: string;
@@ -15,6 +19,45 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
   const isInitialized = useRef(false);
   const isSidebarCollapsed = useCanvasStore((state) => state.isSidebarCollapsed);
   const [isUILoading, setIsUILoading] = useState(true);
+  const canvasAreaWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Precompute styles only when isSidebarCollapsed changes
+  const canvasStyles = useMemo(() => {
+    return { 
+      willChange: "transform",
+      transform: isSidebarCollapsed ? 'translateX(0)' : 'translateX(372px)',
+      width: isSidebarCollapsed ? '100%' : 'calc(100% - 372px)'
+    };
+  }, [isSidebarCollapsed]);
+
+  const containerClassName = useMemo(() => {
+    return cn(
+      "flex h-screen w-screen transition-all duration-300 ease-in-out", 
+      isSidebarCollapsed ? "p-2" : "p-2"
+    );
+  }, [isSidebarCollapsed]);
+
+  const sidebarClassName = useMemo(() => {
+    return cn(
+      "fixed left-0 top-0 h-full w-[372px] bg-white z-40 transition-transform duration-300 ease-in-out",
+      isSidebarCollapsed ? "-translate-x-full" : "translate-x-0"
+    );
+  }, [isSidebarCollapsed]);
+
+  // Remove the expensive logging and setTimeout
+  useEffect(() => {
+    // If we need to do something when sidebar state changes, do it more efficiently
+    if (canvasAreaWrapperRef.current) {
+      // Force a reflow for the canvas only once after sidebar toggling
+      canvasAreaWrapperRef.current.offsetWidth; // Reading this property forces a reflow
+      
+      // If we need to notify any components that depend on canvas size,
+      // we can dispatch a custom event instead of using timeouts
+      const resizeEvent = new CustomEvent('canvas-resize', { detail: { collapsed: isSidebarCollapsed } });
+      window.dispatchEvent(resizeEvent);
+    }
+  }, [isSidebarCollapsed]);
+
 
   // Initialize UI and chat immediately, then handle image generation in the background
   useEffect(() => {
@@ -243,22 +286,25 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
   }, [addMessage, sessionId]);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#FFFFFF] p-2 gap-2">
-      {isUILoading && (
-        <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50">
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="mt-4 text-gray-700">Loading playground...</p>
-          </div>
-        </div>
-      )}
-      {!isSidebarCollapsed && (
-        <div className="w-1/4 min-w-[320px] max-w-[372px] h-full flex-shrink-0">
+    <div className={containerClassName}>
+      {/* Sidebar */}
+      <div
+        className={sidebarClassName}
+        style={{ willChange: "transform" }}
+      >
+        <div className="relative h-full">
           <ChatPanel />
         </div>
-      )}
-      <div className="flex-1 w-full h-full">
+      </div>
+
+      {/* Main canvas area */}
+      <div 
+        ref={canvasAreaWrapperRef}
+        className="relative min-w-0 h-full z-30 transition-transform duration-300 ease-in-out"
+        style={canvasStyles}
+      >
         <CanvasArea />
+        <CollapsedOverlay position="left" />
       </div>
     </div>
   );
