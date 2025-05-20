@@ -16,8 +16,8 @@ import {
   Undo2,
   Redo2,
   MousePointer2,
-  Link,
   X,
+  Link2,
 } from "lucide-react"
 import { useCanvasStore } from "@/store/canvasStore"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -319,7 +319,7 @@ function CanvasToolbarBase() {
                 }}
                 aria-label="Add Image from URL"
               >
-                <Link className="h-5 w-5 text-gray-700" />
+                <Link2 className="h-5 w-5 text-gray-700" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
