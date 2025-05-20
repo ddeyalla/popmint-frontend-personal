@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatPanel } from "@/components/playground/chat-panel/chat-panel";
 import { CanvasArea } from "@/components/playground/canvas/canvas-area";
 import { useChatStore } from "@/store/chatStore";
@@ -11,31 +11,254 @@ interface ClientSidePlaygroundProps {
 }
 
 export default function ClientSidePlayground({ sessionId }: ClientSidePlaygroundProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const addMessage = useChatStore((state) => state.addMessage);
+  const { addMessage } = useChatStore();
+  const isLoaded = useRef(false); // Keep the ref to track if initialization has run
   const isSidebarCollapsed = useCanvasStore((state) => state.isSidebarCollapsed);
+  const [isLoading, setIsLoading] = useState(false); // Add loading state
 
   useEffect(() => {
-    if (isLoaded) return;
-    setIsLoaded(true);
+    // Guard to ensure this effect's core logic runs only once
+    if (isLoaded.current) {
+      console.log('[Playground] useEffect subsequent run: already initialized, skipping core logic.');
+      return;
+    }
+    // Mark as loaded immediately to prevent re-execution of core logic
+    isLoaded.current = true; 
+    console.log('[Playground] useEffect first run: setting isLoaded.current to true.');
 
-    const initializeChat = async () => {
+    console.log('[Playground] Initializing for sessionId:', sessionId);
+
+    const initializePlayground = async () => {
+      try {
+        setIsLoading(true); // Set loading state to true at start
+        console.log('[Playground] Attempting to read localStorage...');
+        const initialMessageJson = localStorage.getItem("popmint-initial-message");
+        const shouldGenerateImageStr = localStorage.getItem("popmint-should-generate-image");
+        const promptToProcess = localStorage.getItem("popmint-prompt-to-process");
+        
+        // For backward compatibility, check old flags too
+        const oldProcessImageStr = localStorage.getItem("popmint-process-image");
+        const oldImageGeneratingStr = localStorage.getItem("popmint-image-generating");
+
+        console.log('[Playground] localStorage data:', {
+          initialMessageJson,
+          shouldGenerateImageStr,
+          promptToProcess,
+          oldProcessImageStr,
+          oldImageGeneratingStr
+        });
+
+        const shouldGenerateImage = shouldGenerateImageStr === "true" || oldProcessImageStr === "true";
+        let userPrompt = promptToProcess || "";
+
+        // Step 1: Add the initial user message from localStorage
+        if (initialMessageJson) {
+          try {
+            const initialMessage = JSON.parse(initialMessageJson);
+            console.log('[Playground] Parsed initialMessage:', initialMessage);
+            
+            // Add the user's message as the first chat bubble
+            addMessage({
+              type: "userInput",
+              content: initialMessage.content,
+              imageUrls: initialMessage.imageUrls
+            });
+            
+            // If no prompt was explicitly provided, use the content from the initialMessage
+            if (!userPrompt && initialMessage.content) {
+              userPrompt = initialMessage.content;
+            }
+          } catch (error) {
+            console.error("[Playground] Error parsing initialMessageJson:", error);
+          }
+        } else {
+          console.log('[Playground] No initialMessageJson found in localStorage.');
+        }
+
+        // Step 2: Handle image generation if needed
+        if (shouldGenerateImage && userPrompt) {
+          console.log('[Playground] Generating image with prompt:', userPrompt);
+          
+          // Add progress message
+          addMessage({ 
+            type: 'agentProgress', 
+            content: 'Processing your request...' 
+          });
+          
+          try {
+            // Make API call to generate image
+            const response = await fetch('/api/agent/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: userPrompt }),
+            });
+            
+            console.log('[Playground] API response status:', response.status);
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('[Playground] Server error:', response.status, errorText);
+              throw new Error(`Server error: ${response.status} - ${errorText}`);
+            }
+            
+            // Process the SSE stream
+            const reader = response.body?.getReader();
+            if (!reader) {
+              console.error('[Playground] Could not read server response body.');
+              throw new Error('Could not read server response body');
+            }
+            
+            const decoder = new TextDecoder();
+            let buffer = '';
+            console.log('[Playground] Processing SSE stream...');
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                console.log('[Playground] SSE stream finished.');
+                break;
+              }
+              
+              const chunk = decoder.decode(value, { stream: true });
+              buffer += chunk;
+              
+              const lines = buffer.split('\n\n');
+              buffer = lines.pop() || '';
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6));
+                    console.log('[Playground] SSE event received:', data);
+                    
+                    if (data.type === 'agentProgress') {
+                      addMessage({ 
+                        type: 'agentProgress', 
+                        content: data.content 
+                      });
+                    } else if (data.type === 'agentOutput') {
+                      const hasImages = data.imageUrls && data.imageUrls.length > 0;
+                      
+                      // Add the output message with appropriate subType
+                      addMessage({
+                        type: 'agentOutput',
+                        content: data.content,
+                        imageUrls: hasImages ? data.imageUrls : undefined,
+                        subType: hasImages ? 'image_generated' : undefined
+                      });
+                      
+                      // Add images to canvas if present
+                      if (hasImages) {
+                        console.log('[Playground] Adding generated images to canvas:', data.imageUrls);
+                        await addImagesToCanvas(data.imageUrls);
+                      }
+                    }
+                  } catch (parseError) {
+                    console.error('[Playground] Error parsing SSE data:', parseError);
+                  }
+                }
+              }
+            }
+          } catch (error: any) {
+            console.error('[Playground] Error during image generation:', error);
+            addMessage({
+              type: 'agentOutput',
+              content: `Error: ${error.message || 'Failed to generate image'}`
+            });
+          } finally {
+            // Clean up localStorage flags
+            localStorage.removeItem("popmint-should-generate-image");
+            localStorage.removeItem("popmint-process-image");
+            localStorage.removeItem("popmint-image-generating");
+          }
+        } else if (useChatStore.getState().messages.length === 0) {
+          // Fallback to demo content if no initial message from localStorage and chat is empty
+          console.log('[Playground] No actionable prompt from localStorage, showing demo content.');
+          showDemoContent();
+        }
+      } catch (error) {
+        console.error("[Playground] Error during initialization:", error);
+        addMessage({
+          type: 'agentOutput',
+          content: `Error initializing playground: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Helper function to add images to canvas
+    const addImagesToCanvas = async (imageUrls: string[]) => {
+      await Promise.all(imageUrls.map(async (url: string, i: number) => {
+        try {
+          // Always proxy external URLs
+          const isExternalUrl = url.startsWith('http') && !url.startsWith('/api/proxy-image');
+          const proxiedUrl = isExternalUrl 
+            ? `/api/proxy-image?url=${encodeURIComponent(url)}`
+            : url;
+          
+          console.log(`[Playground] Processing image ${i+1}:`, url);
+          console.log(`[Playground] Proxied URL:`, proxiedUrl);
+          
+          // Check if image already exists on canvas
+          const canvasStore = useCanvasStore.getState();
+          const imageExists = canvasStore.objects.some(obj => {
+            if (!obj.src) return false;
+            
+            const objIsProxied = obj.src.startsWith('/api/proxy-image');
+            const objOriginalUrl = objIsProxied 
+              ? decodeURIComponent(obj.src.split('?url=')[1] || '')
+              : obj.src;
+            
+            return objOriginalUrl === url || obj.src === url || 
+                  objOriginalUrl === proxiedUrl || obj.src === proxiedUrl;
+          });
+          
+          if (!imageExists) {
+            // Preload and add image
+            await new Promise<void>((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                canvasStore.addImage(proxiedUrl, 20 + (i * 400), 20);
+                console.log(`[Playground] Image ${i+1} added to canvas`);
+                resolve();
+              };
+              img.onerror = () => {
+                console.error(`[Playground] Failed to load image: ${proxiedUrl}`);
+                if (isExternalUrl) {
+                  canvasStore.addImage(url, 20 + (i * 400), 20);
+                  console.log(`[Playground] Using fallback direct URL for image ${i+1}`);
+                }
+                resolve();
+              };
+              img.src = proxiedUrl;
+            });
+          } else {
+            console.log(`[Playground] Image ${i+1} already exists on canvas, skipped`);
+          }
+        } catch (err) {
+          console.error(`[Playground] Error adding image to canvas:`, err);
+        }
+      }));
+    };
+
+    // Helper function to show demo content
+    const showDemoContent = async () => {
       addMessage({
         type: "userInput",
         content: "Create an ad for a mango flavored protein powder highlighting its freshness",
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       addMessage({ type: "agentProgress", content: "Analyzing your request..." });
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       addMessage({
         type: "agentOutput",
         content:
           "There seems to be few issues with the generated adds\n\n1. The ad creatives are not matching the brand tone\n2. The ad creatives need to be 9:16 aspect ratio for Instagram\n3. The ad creatives need to be themed around Diwali\n\nI'll go ahead fix these and make variants",
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       addMessage({
         type: "agentOutput",
         subType: "image_generated",
@@ -48,21 +271,30 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
         ],
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       addMessage({
         type: "agentOutput",
         content:
-          "What do you think about the ads? If you want to try different concept, edit or want more variants, drop your thoughts in the chat 👇",
+          "What do you think about the ads? If you want to try different concept, edit or want more variants, drop your thoughts in the chat ",
       });
     };
 
-    if (useChatStore.getState().messages.length === 0) {
-      initializeChat();
-    }
-  }, [addMessage, isLoaded, sessionId]);
+    initializePlayground().catch(error => {
+      console.error("[Playground] Unhandled error:", error);
+      setIsLoading(false);
+    });
+  }, [addMessage, sessionId]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FFFFFF] p-2 gap-2">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50">
+          <div className="flex flex-col items-center">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-gray-700">Loading playground...</p>
+          </div>
+        </div>
+      )}
       {!isSidebarCollapsed && (
         <div className="w-1/4 min-w-[320px] max-w-[372px] h-full flex-shrink-0">
           <ChatPanel />

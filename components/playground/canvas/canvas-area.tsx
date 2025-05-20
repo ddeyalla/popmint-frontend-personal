@@ -210,27 +210,6 @@ export function CanvasArea() {
     };
   }, [zoomLevel, selectedObjectIds, setZoomLevel, deleteObject, selectAllObjects, duplicationActive]);
 
-  // Process image messages from chat
-  useEffect(() => {
-    const imageMessages = messages.filter(
-      (msg) =>
-        msg.type === "agentOutput" && msg.subType === "image_generated" && msg.imageUrls && msg.imageUrls.length > 0,
-    )
-
-    // Get the latest image message
-    const latestMessage = imageMessages[imageMessages.length - 1]
-    if (latestMessage && latestMessage.imageUrls) {
-      // Check for existing images before adding
-      const existingUrls = new Set(objects.map(obj => obj.src))
-      latestMessage.imageUrls.forEach((url, index) => {
-        if (!existingUrls.has(url)) {
-          const addImage = useCanvasStore.getState().addImage
-          addImage(url, 20 + index * 420, 20)
-        }
-      })
-    }
-  }, [messages, objects])
-
   // For demo purposes, add sample images if canvas is empty
   useEffect(() => {
     // Check if there are any chat-generated images

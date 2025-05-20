@@ -34,31 +34,53 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
   useEffect(() => {
     if (!object.src) return
 
-    const img = new window.Image()
-    img.crossOrigin = "anonymous"
+    let didCancel = false;
+    let retryCount = 0;
+    let img: HTMLImageElement | null = null;
 
-    // Set up event handlers before setting src
-    const handleLoad = () => {
-      setImage(img)
-      setImageLoaded(true)
-    }
+    const loadImage = () => {
+      if (img) {
+        img.onload = null;
+        img.onerror = null;
+      }
+      img = new window.Image();
+      img.crossOrigin = "anonymous";
+      console.log('[KonvaImage] Attempting to load image:', object.src, 'crossOrigin:', img.crossOrigin, 'retry:', retryCount);
 
-    const handleError = () => {
-      console.error(`Failed to load image: ${object.src}`)
-      setImageLoaded(false)
-    }
+      img.onload = () => {
+        if (didCancel) return;
+        setImage(img);
+        setImageLoaded(true);
+        console.log('[KonvaImage] Image loaded successfully:', object.src);
+      };
 
-    img.addEventListener("load", handleLoad)
-    img.addEventListener("error", handleError)
+      img.onerror = (e) => {
+        if (didCancel) return;
+        console.error('[KonvaImage] Failed to load image:', object.src, e);
+        if (retryCount < 1) {
+          retryCount++;
+          setTimeout(loadImage, 1000); // Retry after 1s
+          console.log('[KonvaImage] Retrying image load:', object.src);
+        } else {
+          setImageLoaded(false);
+          setImage(null);
+          console.error('[KonvaImage] Image failed after retry:', object.src);
+        }
+      };
 
-    // Now set the src to trigger loading
-    img.src = object.src
+      img.src = object.src || '';
+    };
+
+    loadImage();
 
     return () => {
-      img.removeEventListener("load", handleLoad)
-      img.removeEventListener("error", handleError)
-      setImage(null)
-      setImageLoaded(false)
+      didCancel = true;
+      if (img) {
+        img.onload = null;
+        img.onerror = null;
+      }
+      setImage(null);
+      setImageLoaded(false);
     }
   }, [object.src])
 
@@ -114,7 +136,17 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
     }
   }
 
-  if (!image || !imageLoaded) return null
+  if (!image || !imageLoaded) return (
+    <Group>
+      <Text
+        x={object.x || 0}
+        y={object.y || 0}
+        text={"Failed to load image"}
+        fontSize={16}
+        fill="#ef4444"
+      />
+    </Group>
+  );
 
   // Calculate button dimensions with maximum constraints
   const maxScale = 1.5; // Maximum scale factor when zooming out

@@ -4,6 +4,20 @@
 
 Popmint is an AI-powered tool for generating static ad creatives from product inputs. Users can enter a product link or text prompt (for example, “Create an ad for a mango flavored protein powder highlighting its freshness”), and the AI agent produces marketing content and images accordingly. The app features a drop zone where you can “Drop your ideas and the product link you want to create ads for”. Once a request is submitted, the AI agent analyzes the input and generates one or more ad designs, including static images and suggested copy. It even identifies issues (e.g., wrong tone or aspect ratio) and automatically fixes them in new ad variants. For example, after the initial generation, the agent might respond with comments and then provide several image variants for review. This creates a feedback loop: the agent refines ads iteratively based on user comments and suggestions, ultimately producing polished ad creatives.
 
+## OpenAI DALL-E Image Generation
+
+This feature uses OpenAI's DALL-E API to generate images based on text prompts. To enable this functionality:
+
+1. Create a `.env.local` file in the root directory if it doesn't exist already.
+2. Add your OpenAI API key to the file:
+   ```
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
+3. Replace `your_openai_api_key_here` with your actual OpenAI API key.
+4. Restart the development server.
+
+When you send a message in the chat interface, the application will use DALL-E to generate an image based on your prompt.
+
 ---
 
 ## Table of Contents
@@ -21,15 +35,15 @@ Popmint is an AI-powered tool for generating static ad creatives from product in
 
 - **Interactive Canvas Editor**: A drag-and-drop canvas powered by React Konva where ad elements (images, text, shapes) can be arranged and edited. The canvas store provides methods like `addImage` and `addText` to insert elements, along with tools to move, resize, and style them.
 
-- **AI-Powered Ad Generation**: A built-in AI “ad agent” chat interface generates ad concepts from your prompts. Users input product details or links, and the agent returns text suggestions and images. (In the current code, AI calls are simulated, but real integration would use an OpenAI-based backend.) The example implementation shows a user prompt (“Create an ad for a mango flavored protein powder…”) and the agent outputting feedback and new images.
+- **AI-Powered Ad Generation**: A built-in AI "ad agent" chat interface generates ad concepts from your prompts. Users input product details or links, and the agent returns text suggestions and images. (In the current code, AI calls are simulated, but real integration would use an OpenAI-based backend.) The example implementation shows a user prompt ("Create an ad for a mango flavored protein powder...") and the agent outputting feedback and new images.
 
-- **Product Input Support**: Users can enter a product URL or drop images onto the canvas. This helps tailor the ads to real products. The UI even highlights when you can drop images (showing a “Drop images here” overlay) and lets you upload multiple images simultaneously.
+- **Product Input Support**: Users can enter a product URL or drop images onto the canvas. This helps tailor the ads to real products. The UI even highlights when you can drop images (showing a "Drop images here" overlay) and lets you upload multiple images simultaneously.
 
-- **Ad-Type Suggestions**: Quick suggestion buttons (e.g., “Facebook ad”, “Instagram ad”, “Product ad”, “Discount ad”) are provided to help define the ad style. Clicking one of these tags autofills the prompt area.
+- **Ad-Type Suggestions**: Quick suggestion buttons (e.g., "Facebook ad", "Instagram ad", "Product ad", "Discount ad") are provided to help define the ad style. Clicking one of these tags autofills the prompt area.
 
-- **Iterative Feedback Loop**: After generation, the agent asks for feedback and offers further revisions. For instance, it might say “What do you think about the ads? If you want to try a different concept, edit or want more variants, drop your thoughts in the chat”. This allows you to continue refining the ad creative until you’re satisfied.
+- **Iterative Feedback Loop**: After generation, the agent asks for feedback and offers further revisions. For instance, it might say "What do you think about the ads? If you want to try a different concept, edit or want more variants, drop your thoughts in the chat". This allows you to continue refining the ad creative until you're satisfied.
 
-- **Multiple Variants & Images**: The AI can output multiple image variants. In the demo code, after fixing issues, the agent “creates 5 more variants” of the ad and returns a list of image URLs. You can then click or drag these images onto the canvas for further editing or selection.
+- **Multiple Variants & Images**: The AI can output multiple image variants. In the demo code, after fixing issues, the agent "creates 5 more variants" of the ad and returns a list of image URLs. You can then click or drag these images onto the canvas for further editing or selection.
 
 ---
 
@@ -49,7 +63,7 @@ Popmint is an AI-powered tool for generating static ad creatives from product in
 
 - **OpenAI API (Planned)**: While the current agent endpoints are stubbed, the design anticipates calling a Python backend that uses the OpenAI API. API routes under `app/api/agent/` (for starting a session, streaming responses, and sending messages) are placeholders.
 
-- **Other Tools**: The project uses Next.js’ built-in font optimization (`next/font` for Inter and Sora), Stagewise Toolbar for development debugging, and ESLint for linting. Dependencies are managed via npm (see `package.json`).
+- **Other Tools**: The project uses Next.js' built-in font optimization (`next/font` for Inter and Sora), Stagewise Toolbar for development debugging, and ESLint for linting. Dependencies are managed via npm (see `package.json`).
 
 ---
 
