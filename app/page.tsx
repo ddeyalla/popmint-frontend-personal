@@ -1,14 +1,16 @@
 "use client"
 
 import type React from "react"
-import { Heart, ImageIcon, X, ArrowUp } from "lucide-react"
+import { Heart, ImageIcon, X, ArrowUp, Store } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { generateImageFromPrompt } from '@/lib/generate-image'
+import { Textarea } from "@/components/ui/textarea"
+import { useAutoResizeTextarea } from "@/components/hooks/use-auto-resize-textarea"
 
-// More permissive URL regex that handles complex URLs with various special characters
-const URL_REGEX = /(https?:\/\/|www\.|ftp:\/\/)[^\s\n\r\)\]\}"']+[^\s\n\r\)\]\}"'\.](?=[\s\n\r\)\]\}"']|$)/gim;
+// RegEx for detecting URLs in text
+const URL_REGEX = /(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi;
 
 // Image types
 type ImageData = {
@@ -296,12 +298,25 @@ export default function Home() {
       // First, clear any legacy items to prevent conflicts
       localStorage.removeItem("popmint-prompt");
       localStorage.removeItem("popmint-images");
+      localStorage.removeItem("popmint-process-image");
+      
+      // Check if input contains a product URL - if it does, mark it for ad generation
+      const containsUrl = URL_REGEX.test(inputValue);
+      const isAdRequest = inputValue.trim().toLowerCase().startsWith('/ad') || 
+                         (containsUrl && selectedSuggestion?.toLowerCase().includes('ad'));
       
       // Store all required data in localStorage
       localStorage.setItem("popmint-project-name", projectName);
       localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
-      localStorage.setItem("popmint-process-image", "true");
-      localStorage.setItem("popmint-prompt-to-process", inputValue.trim());
+      
+      if (isAdRequest) {
+        // Set special flag for ad generation
+        console.log("[HomePage] Detected ad generation request");
+        localStorage.setItem("popmint-generate-ad", "true");
+      } else if (inputValue.trim()) {
+        // For any other input, don't do special processing
+        console.log("[HomePage] Regular chat input detected");
+      }
       
       // Navigate immediately - don't wait for any processes
       router.push(`/playground/${sessionId}`);
@@ -580,14 +595,23 @@ export default function Home() {
 
           {/* Suggestion Pills */}
           <div className="flex flex-wrap gap-3 mt-4 justify-center">
-            {["Facebook ad", "Instagram ad", "Product ad", "Discount ad"].map((tag) => (
+            {[
+              "Facebook ad", 
+              "Instagram ad",
+              "Generate ads from URL",
+            ].map((tag) => (
               <button
                 key={tag}
-                className={`px-5 py-2 rounded-full text-sm transition-colors ${
-                  selectedSuggestion === tag ? "bg-slate-50 text-black-950 outline-2 outline-offset-2 border border-double border-blue-500" : "bg-slate-50 hover:bg-slate-100"
+                className={`px-5 py-2 rounded-full text-sm transition-colors flex items-center gap-1.5 ${
+                  selectedSuggestion === tag 
+                    ? "bg-blue-100 text-blue-700 border border-blue-300" 
+                    : tag.includes("ads from URL")
+                      ? "bg-green-50 hover:bg-green-100 text-green-700 border border-green-200"
+                      : "bg-slate-50 hover:bg-slate-100"
                 }`}
                 onClick={() => handleSuggestionClick(tag)}
               >
+                {tag.includes("ads from URL") && <Store className="w-3.5 h-3.5 text-green-600" />}
                 {tag}
               </button>
             ))}

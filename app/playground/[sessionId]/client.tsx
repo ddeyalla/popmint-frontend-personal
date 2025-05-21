@@ -70,10 +70,12 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
         // Read from localStorage
         const initialMessageJson = localStorage.getItem("popmint-initial-message");
         const shouldProcessImageStr = localStorage.getItem("popmint-process-image");
+        const shouldGenerateAdStr = localStorage.getItem("popmint-generate-ad");
         const promptToProcess = localStorage.getItem("popmint-prompt-to-process");
 
         // Parse values
         const shouldProcessImage = shouldProcessImageStr === "true";
+        const shouldGenerateAd = shouldGenerateAdStr === "true";
         let userPrompt = promptToProcess || "";
 
         // Initialize chat UI with initial message
@@ -95,8 +97,12 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
             // UI is ready now, remove loading state
             setIsUILoading(false);
             
+            // Handle ad generation if flag is set
+            if (shouldGenerateAd && initialMessage.content) {
+              generateAd(initialMessage.content);
+            }
             // Start image generation in background AFTER UI is loaded
-            if (userPrompt && shouldProcessImage) {
+            else if (userPrompt && shouldProcessImage) {
               // Add a progress message to show processing
               addMessage({ type: 'agentProgress', content: 'Processing your request...' });
               
@@ -114,6 +120,11 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
           }
           setIsUILoading(false);
         }
+
+        // Clear localStorage flags
+        localStorage.removeItem("popmint-generate-ad");
+        localStorage.removeItem("popmint-process-image");
+        localStorage.removeItem("popmint-prompt-to-process");
       } catch (error) {
         console.error("[Playground] Error during initialization:", error);
         setIsUILoading(false);
@@ -203,6 +214,345 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
       } finally {
         // Always clean up when done, regardless of success/failure
         localStorage.removeItem("popmint-process-image");
+      }
+    };
+
+    // Generate ads for product URLs
+    const generateAd = async (content: string) => {
+      try {
+        // Add a progress message
+        addMessage({ 
+          type: 'agentProgress', 
+          content: 'Starting ad generation...',
+          subType: 'ad_concept'
+        });
+
+        // Check if content starts with /ad command and extract product URL
+        let productUrl = '';
+        let imageCount = 4; // Default count
+        
+        if (content.toLowerCase().startsWith('/ad')) {
+          // Parse /ad command pattern
+          const commandText = content.replace(/^\/ad\s+/i, '').trim();
+          
+          // Look for image count flag (e.g., --count=4 or -n=4)
+          const countMatch = commandText.match(/(--count=|--n=|-n=)(\d+)$/);
+          
+          if (countMatch) {
+            // Extract count and remove the flag from the URL
+            imageCount = parseInt(countMatch[2], 10);
+            productUrl = commandText.replace(countMatch[0], '').trim();
+          } else {
+            productUrl = commandText;
+          }
+        } else {
+          // Try to extract URL from regular text
+          const urlMatch = content.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
+          if (urlMatch && urlMatch.length > 0) {
+            productUrl = urlMatch[0];
+          }
+        }
+
+        if (!productUrl) {
+          addMessage({
+            type: 'agentOutput',
+            content: 'No valid product URL found. Please provide a URL to generate ads.',
+            subType: 'ad_concept'
+          });
+          return;
+        }
+
+        // Make sure URL starts with http
+        if (!productUrl.startsWith('http')) {
+          productUrl = 'https://' + productUrl;
+        }
+
+        // First check API health
+        console.log('[Playground] Checking ad generation API health...');
+        try {
+          const healthResponse = await fetch('/api/proxy/healthz');
+          if (!healthResponse.ok) {
+            throw new Error(`Health check failed with status: ${healthResponse.status}`);
+          }
+          console.log('[Playground] Ad generation API is healthy');
+        } catch (healthError: any) {
+          console.error('[Playground] API health check failed:', healthError);
+          addMessage({
+            type: 'agentOutput',
+            content: `Ad generation service is unavailable. Please try again later.`,
+            subType: 'ad_concept'
+          });
+          return;
+        }
+
+        // Generate ad using adGenerationService from generate-ad.ts
+        addMessage({ 
+          type: 'agentProgress', 
+          content: `Analyzing product from URL: ${productUrl}`,
+          subType: 'ad_concept'
+        });
+        
+        // Import the ad generation functions
+        const { generateAdsFromProductUrl, getAdGenerationStreamUrl } = await import('@/lib/generate-ad');
+        
+        // Start the generation job
+        const jobId = await generateAdsFromProductUrl(productUrl, imageCount);
+        console.log(`[Playground] Ad generation job started with ID: ${jobId}`);
+        
+        // Connect to the SSE stream
+        addMessage({ 
+          type: 'agentProgress', 
+          content: `Ad generation started. Will create ${imageCount} image${imageCount !== 1 ? 's' : ''}.`,
+          subType: 'ad_concept'
+        });
+        
+        // Get the stream URL
+        const streamUrl = getAdGenerationStreamUrl(jobId);
+        console.log(`[Playground] Connecting to stream URL: ${streamUrl}`);
+        
+        // Connect to the stream using EventSource directly
+        const eventSource = new EventSource(streamUrl);
+        
+        // Map to track if we've already processed certain stages
+        const processedStages = new Map<string, boolean>();
+        
+        // Generic message handler for unnamed events
+        eventSource.onmessage = (event) => {
+          try {
+            console.log('[Playground] Received generic SSE message:', event.data);
+            const data = JSON.parse(event.data);
+            
+            if (data.stage) {
+              // Show progress message if not already shown for this stage
+              const stageKey = data.stage;
+              if (!processedStages.get(stageKey)) {
+                processedStages.set(stageKey, true);
+                
+                const progressMessage = data.message || `Processing stage: ${data.stage}`;
+                addMessage({
+                  type: 'agentProgress',
+                  content: progressMessage,
+                  subType: 'ad_concept'
+                });
+              }
+            }
+            
+            // Handle completion or error
+            if (data.stage === 'done' || data.stage === 'error') {
+              if (data.stage === 'done' && data.data?.imageUrls) {
+                console.log('[Playground] Ad generation complete with images:', data.data.imageUrls);
+                // Add the images to the canvas
+                addImagesToCanvas(data.data.imageUrls);
+                
+                // Add completion message
+                addMessage({
+                  type: 'agentOutput',
+                  content: data.message || 'Ad generation complete!',
+                  subType: 'ad_concept'
+                });
+              } else if (data.stage === 'error') {
+                console.error('[Playground] Ad generation error:', data);
+                addMessage({
+                  type: 'agentOutput',
+                  content: `Error: ${data.message || 'Unknown error during ad generation'}`,
+                  subType: 'ad_concept'
+                });
+              }
+              
+              // Close the connection
+              eventSource.close();
+            }
+          } catch (e) {
+            console.error('[Playground] Error parsing message event:', e);
+          }
+        };
+        
+        // Set up specific event listeners for each stage in the ad generation pipeline
+        const stageHandlers: Record<string, (data: any) => void> = {
+          'plan': (data) => {
+            console.log('[Playground] Plan stage:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Planning ad generation...',
+              subType: 'ad_concept'
+            });
+          },
+          'page_scrape_started': (data) => {
+            console.log('[Playground] Page scrape started:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Scraping product page...',
+              subType: 'ad_concept'
+            });
+          },
+          'page_scrape_done': (data) => {
+            console.log('[Playground] Page scrape done:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Product page scraped successfully.',
+              subType: 'ad_concept'
+            });
+          },
+          'image_extraction_started': (data) => {
+            console.log('[Playground] Image extraction started:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Extracting product images...',
+              subType: 'ad_concept'
+            });
+          },
+          'image_extraction_done': (data) => {
+            console.log('[Playground] Image extraction done:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Product images extracted successfully.',
+              subType: 'ad_concept'
+            });
+          },
+          'research_started': (data) => {
+            console.log('[Playground] Research started:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Researching product and market...',
+              subType: 'ad_concept'
+            });
+          },
+          'research_done': (data) => {
+            console.log('[Playground] Research done:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Product research completed.',
+              subType: 'ad_concept'
+            });
+          },
+          'concepts_started': (data) => {
+            console.log('[Playground] Concepts started:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Generating ad concepts...',
+              subType: 'ad_concept'
+            });
+          },
+          'concepts_done': (data) => {
+            console.log('[Playground] Concepts done:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Ad concepts generated.',
+              subType: 'ad_concept'
+            });
+            
+            // If we have concept data, show it
+            if (data.data?.concepts && data.data.concepts.length > 0) {
+              const conceptNames = data.data.concepts
+                .map((c: any) => c.concept_name)
+                .join(', ');
+                
+              addMessage({
+                type: 'agentProgress',
+                content: `Generated concepts: ${conceptNames}`,
+                subType: 'ad_concept'
+              });
+            }
+          },
+          'ideas_started': (data) => {
+            console.log('[Playground] Ideas started:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Generating ad copy and ideas...',
+              subType: 'ad_concept'
+            });
+          },
+          'ideas_done': (data) => {
+            console.log('[Playground] Ideas done:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Ad copy and ideas generated.',
+              subType: 'ad_concept'
+            });
+          },
+          'images_started': (data) => {
+            console.log('[Playground] Images started:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Generating ad images...',
+              subType: 'ad_concept'
+            });
+          },
+          'image_generation_progress': (data) => {
+            console.log('[Playground] Image generation progress:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || `Generating image ${data.data?.currentImage || ''}... ${data.pct || 0}% complete`,
+              subType: 'ad_concept'
+            });
+          },
+          'images_done': (data) => {
+            console.log('[Playground] Images done:', data);
+            addMessage({
+              type: 'agentProgress',
+              content: data.message || 'Ad images generated.',
+              subType: 'ad_concept'
+            });
+          },
+          'done': (data) => {
+            console.log('[Playground] Generation done:', data);
+            if (data.data?.imageUrls) {
+              addMessage({
+                type: 'agentOutput',
+                content: data.message || 'Ad generation complete!',
+                subType: 'ad_concept'
+              });
+              
+              // Add images to canvas
+              addImagesToCanvas(data.data.imageUrls);
+            }
+            eventSource.close();
+          },
+          'error': (data) => {
+            console.error('[Playground] Error event:', data);
+            addMessage({
+              type: 'agentOutput',
+              content: `Error: ${data.message || 'Unknown error'} (${data.errorCode || 'UNKNOWN_ERROR'})`,
+              subType: 'ad_concept'
+            });
+            eventSource.close();
+          },
+          'heartbeat': (data) => {
+            // Just log heartbeats, don't show in UI
+            console.log('[Playground] Heartbeat received:', data);
+          }
+        };
+        
+        // Register all event handlers
+        Object.entries(stageHandlers).forEach(([event, handler]) => {
+          eventSource.addEventListener(event, (evt: any) => {
+            try {
+              const data = JSON.parse(evt.data);
+              handler(data);
+            } catch (e) {
+              console.error(`[Playground] Error handling ${event} event:`, e);
+            }
+          });
+        });
+        
+        // Handle connection error
+        eventSource.onerror = (error) => {
+          console.error('[Playground] EventSource error:', error);
+          addMessage({
+            type: 'agentOutput',
+            content: 'Error connecting to ad generation service. Please try again.',
+            subType: 'ad_concept'
+          });
+          eventSource.close();
+        };
+        
+      } catch (error: any) {
+        console.error('[Playground] Error with ad generation:', error);
+        addMessage({
+          type: 'agentOutput',
+          content: `Error: ${error.message || 'An error occurred during ad generation'}`,
+          subType: 'ad_concept'
+        });
       }
     };
 
