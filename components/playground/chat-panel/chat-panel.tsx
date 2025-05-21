@@ -6,13 +6,14 @@ import { Separator } from "@/components/ui/separator"
 import { MessageBubble } from "./message-bubble"
 import { ChatInput } from "./chat-input"
 import { useChatStore } from "@/store/chatStore"
-import { CheckCircle, CircleCheck, ImageIcon } from "lucide-react"
+import { CheckCircle, CircleCheck, ImageIcon, Store } from "lucide-react"
 import { useSessionStore } from "@/store/sessionStore"
 import { SidebarToggle } from "@/components/playground/sidebar-toggle"
 import { useCanvasStore } from "@/store/canvasStore"
 import Link from "next/link"
 import { ProjectTitleDropdown } from "@/components/playground/project-title-dropdown"
 import { generateImageFromPrompt } from '@/lib/generate-image'
+import { CommandHelp } from "@/components/ui/command-help"
 
 export function ChatPanel() {
   const messages = useChatStore((state) => state.messages)
@@ -127,9 +128,13 @@ export function ChatPanel() {
         <div className="flex items-center px-1 py-2 w-full">
           <div className="flex h-6 items-center gap-1 flex-1">
             <ProjectTitleDropdown />
+            <CommandHelp className="ml-2" />
           </div>
           <div className="flex items-center gap-1 text-neutral-400 text-xs">
             {hasImageMessages && <ImageIcon className="w-3 h-3 text-green-500" />}
+            {messages.some(m => m.subType === 'ad_concept') && 
+              <Store className="w-3 h-3 text-emerald-500" aria-label="Ad generation" />
+            }
             <span className="tracking-[0.06px]">Auto-saved</span>
           </div>
         </div>
@@ -137,12 +142,31 @@ export function ChatPanel() {
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden mb-2 rounded-lg">
-        <ScrollArea className="h-full px-2 py-2">
+        <ScrollArea className="h-full px- py-2">
           <div className="flex flex-col gap-3">
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-center">
-                <ImageIcon className="w-8 h-8 text-gray-300 mb-2" />
-                <p className="text-gray-500 text-sm">Enter a prompt below to generate an image with DALL-E</p>
+              <div className="h-[calc(100%-80px)] flex flex-col items-center justify-center gap-4">
+                <div className="bg-gray-50 border border-gray-100 rounded-lg p-5 text-sm max-w-md space-y-4">
+                  <div className="font-medium text-gray-900">Welcome to Popmint!</div>
+                  <div className="text-gray-500">
+                    <p className="mb-2">Generate professional ad concepts by entering the command below:</p>
+
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0 mt-1">
+                          <Store className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">Generate product ads</div>
+                          <div className="text-gray-500 text-xs">Type <span className="font-mono text-emerald-600 bg-emerald-50 px-1 rounded">/ad</span> followed by a product URL.</div>
+                          <div className="text-gray-500 text-xs mt-1">Example: <span className="font-mono text-gray-600">/ad https://example.com/product --count=4</span></div>
+                          <div className="text-gray-500 text-xs mt-1 italic">AI analyzes product pages to create professional marketing visuals</div>
+                          <div className="text-gray-500 text-xs mt-1">Use <span className="font-mono">--count=N</span> to specify the number of ad designs (default: 4)</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               messages.map((message) => (
@@ -153,7 +177,7 @@ export function ChatPanel() {
             {messages.length > 0 && messages[messages.length - 1].type === "agentOutput" && (
               <div className="flex items-center gap-2 w-full mt-2 mb-2">
                 <CircleCheck className="w-4 h-4 text-green-500" />
-                <div className="text-green-600 text-xs font-medium">Image generation completed</div>
+                <div className="text-green-600 text-xs font-medium">Generation completed</div>
               </div>
             )}
 

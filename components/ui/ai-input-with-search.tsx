@@ -13,6 +13,7 @@ interface AIInputWithSearchProps {
   minHeight?: number;
   maxHeight?: number;
   onSubmit?: (value: string, withSearch: boolean) => void;
+  onChange?: (value: string) => void;
   onFileSelect?: (file: File) => void;
   className?: string;
   disabled?: boolean;
@@ -24,6 +25,7 @@ export function AIInputWithSearch({
   minHeight = 32,
   maxHeight = 164,
   onSubmit,
+  onChange,
   onFileSelect,
   className,
   disabled = false
@@ -74,6 +76,7 @@ export function AIInputWithSearch({
               onChange={(e) => {
                 setValue(e.target.value);
                 adjustHeight();
+                onChange?.(e.target.value);
               }}
             />
           </div>
