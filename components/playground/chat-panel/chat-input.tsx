@@ -1,11 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
-import { XCircle } from "lucide-react"; 
 import { useChatStore, AdGenerationStage } from "@/store/chatStore"; 
 import { AIInputWithSearch } from "@/components/ui/ai-input-with-search";
 import { generateAdsFromProductUrl, getAdGenerationStreamUrl, cancelAdGeneration } from "@/lib/generate-ad";
-import { Button } from "@/components/ui/button";
 
 interface ChatInputProps {
   disabled?: boolean;
@@ -18,6 +16,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
   const [inputValue, setInputValue] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [hasValidUrl, setHasValidUrl] = useState(false);
 
   const {
     addMessage,
@@ -44,7 +43,29 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     };
   }, []);
 
-  // Map backend SSE stages to our AdGenerationStage following Frontend-flow.md
+  // Listen for ad generation trigger from homepage
+  useEffect(() => {
+    const handleTriggerAdGeneration = (event: CustomEvent) => {
+      const { content, productUrl } = event.detail;
+      if (content && productUrl) {
+        handleAdGeneration(content, productUrl);
+      }
+    };
+
+    window.addEventListener('trigger-ad-generation', handleTriggerAdGeneration as EventListener);
+    
+    return () => {
+      window.removeEventListener('trigger-ad-generation', handleTriggerAdGeneration as EventListener);
+    };
+  }, []);
+
+  // Check for valid URL in input
+  useEffect(() => {
+    const urlMatch = inputValue.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
+    setHasValidUrl(!!urlMatch && urlMatch.length > 0);
+  }, [inputValue]);
+
+  // Map backend SSE stages to our AdGenerationStage
   const mapBackendStage = (backendStage: string): AdGenerationStage => {
     switch (backendStage) {
       case 'plan':
@@ -54,7 +75,6 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
         return 'scraping';
       case 'image_extraction_started':
       case 'image_extraction_done':
-        // No UI updates for image extraction per Frontend-flow.md
         return 'scraping';
       case 'research_started':
       case 'research_done':
@@ -78,26 +98,17 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     }
   };
 
-  // Handle SSE events following Frontend-flow.md progression
+  // Handle SSE events
   const handleSSEEvent = useCallback((eventData: any) => {
     try {
       const { jobId, stage, message, data, pct = 0, errorCode } = eventData || {};
       
-      if (!jobId) {
-        console.warn('🔥 SSE Event missing jobId:', eventData);
+      if (!jobId || !stage) {
         return;
       }
       
-      if (!stage) {
-        console.warn('🔥 SSE Event missing stage:', eventData);
-        return;
-      }
-      
-      // TypeScript type guard - jobId is guaranteed to be string after the null check above
       const eventJobId = jobId as string;
       const mappedStage = mapBackendStage(stage);
-
-      console.log('🔥 SSE Event:', { jobId: eventJobId, stage, mappedStage, message, pct, data });
 
       // Track step start times
       const stepKey = `${eventJobId}-${stage}`;
@@ -128,7 +139,6 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           );
           stepStartTimes.delete(startKey);
         } else {
-          // Fallback if we missed the start event
           completeAdGenerationStep(
             eventJobId, 
             mappedStage, 
@@ -160,6 +170,12 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
             { finalImages: data?.imageUrls || [] }
           );
           completeAdGeneration(eventJobId, data?.imageUrls || []);
+          
+          // Add images to canvas
+          if (data?.imageUrls && data.imageUrls.length > 0) {
+            addImagesToCanvas(data.imageUrls);
+          }
+          
           setIsProcessing(false);
           disconnectSSE();
           break;
@@ -218,14 +234,12 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           });
           break;
 
-        // Skip image extraction started (no UI updates per Frontend-flow.md)
         case 'image_extraction_started':
           // No UI updates for this stage
           break;
 
-        // Heartbeat events - no UI updates needed
         case 'heartbeat':
-          console.log('💓 Heartbeat received');
+          // Heartbeat events - no UI updates needed
           break;
 
         default:
@@ -236,8 +250,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           break;
       }
     } catch (error) {
-      console.error('🔥 Error handling SSE event:', error, 'Event data:', eventData);
-      // Don't break the connection for individual event errors
+      console.error('Error handling SSE event:', error, 'Event data:', eventData);
     }
   }, [updateAdGeneration, completeAdGenerationStep, addGeneratedImage, setAdGenerationError, completeAdGeneration, setIsProcessing]);
 
@@ -259,6 +272,63 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     }
   };
 
+  // Helper function to add images to canvas
+  const addImagesToCanvas = async (imageUrls: string[]) => {
+    try {
+      const { useCanvasStore } = await import('@/store/canvasStore');
+      const canvasStore = useCanvasStore.getState();
+      
+      // Constants for positioning
+      const DEFAULT_IMAGE_WIDTH = 180;
+      const IMAGE_SPACING = 40; // 40px spacing between images
+      const START_X = 20;
+      const VERTICAL_SPACING = 40;
+      
+      // Calculate starting Y position - place below existing content
+      const existingObjects = canvasStore.objects;
+      let startY = 20;
+      
+      if (existingObjects.length > 0) {
+        const maxY = Math.max(...existingObjects.map(obj => (obj.y || 0) + (obj.height || 100)));
+        startY = maxY + VERTICAL_SPACING;
+      }
+      
+      // Add each image in a single row with 40px spacing
+      imageUrls.forEach((url: string, index: number) => {
+        try {
+          // Handle proxying for external URLs
+          const isExternalUrl = url.startsWith('http') && !url.startsWith('/api/proxy-image');
+          const proxiedUrl = isExternalUrl 
+            ? `/api/proxy-image?url=${encodeURIComponent(url)}`
+            : url;
+            
+          // Check if image already exists on canvas
+          const imageExists = existingObjects.some(obj => {
+            if (!obj.src) return false;
+            
+            const objIsProxied = obj.src.startsWith('/api/proxy-image');
+            const objOriginalUrl = objIsProxied 
+              ? decodeURIComponent(obj.src.split('?url=')[1] || '')
+              : obj.src;
+            
+            return objOriginalUrl === url || obj.src === url || 
+                  objOriginalUrl === proxiedUrl || obj.src === proxiedUrl;
+          });
+          
+          if (!imageExists) {
+            // Calculate X position: start + index * (image_width + spacing)
+            const x = START_X + index * (DEFAULT_IMAGE_WIDTH + IMAGE_SPACING);
+            canvasStore.addImage(proxiedUrl, x, startY);
+          }
+        } catch (imgErr) {
+          console.error(`Error adding image ${index} to canvas:`, imgErr);
+        }
+      });
+    } catch (error) {
+      console.error('Error adding images to canvas:', error);
+    }
+  };
+
   // Connect to SSE stream with retry logic
   const connectSSE = useCallback((jobId: string, retryCount = 0) => {
     if (eventSourceRef.current) {
@@ -266,14 +336,13 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     }
 
     const streamUrl = getAdGenerationStreamUrl(jobId);
-    console.log('🔥 Connecting to SSE:', streamUrl, retryCount > 0 ? `(retry ${retryCount})` : '');
 
     let eventSource: EventSource;
     try {
       eventSource = new EventSource(streamUrl);
       eventSourceRef.current = eventSource;
     } catch (error) {
-      console.error('🔥 Failed to create EventSource:', error);
+      console.error('Failed to create EventSource:', error);
       if (currentJobId && isProcessing) {
         setAdGenerationError(currentJobId, 'Failed to connect to generation stream');
       }
@@ -282,19 +351,14 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     }
 
     eventSource.onopen = () => {
-      console.log('🔥 SSE Connected');
-      
-      // Set a timeout to detect hanging connections (30 seconds without any events)
+      // Set a timeout to detect hanging connections
       if (connectionTimeoutRef.current) {
         clearTimeout(connectionTimeoutRef.current);
       }
       connectionTimeoutRef.current = setTimeout(() => {
-        console.warn('🔥 SSE Connection timeout - no events received for 30 seconds');
         if (isProcessing) {
           eventSource.close();
-          // Try to reconnect if we haven't exceeded retry limit
           if (retryCount < 3) {
-            console.log('🔥 Attempting to reconnect due to timeout');
             connectSSE(jobId, retryCount + 1);
           } else {
             setAdGenerationError(jobId, 'Connection timeout. Please try again.');
@@ -302,46 +366,24 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
             disconnectSSE();
           }
         }
-      }, 30000); // 30 second timeout
+      }, 30000);
     };
 
     eventSource.onmessage = (event) => {
       try {
-        // Reset connection timeout on any message
-        if (connectionTimeoutRef.current) {
-          clearTimeout(connectionTimeoutRef.current);
-          connectionTimeoutRef.current = setTimeout(() => {
-            console.warn('🔥 SSE Connection timeout - no events received for 30 seconds');
-            if (isProcessing) {
-              eventSource.close();
-              if (retryCount < 3) {
-                console.log('🔥 Attempting to reconnect due to timeout');
-                connectSSE(jobId, retryCount + 1);
-              } else {
-                setAdGenerationError(jobId, 'Connection timeout. Please try again.');
-                setIsProcessing(false);
-                disconnectSSE();
-              }
-            }
-          }, 30000);
-        }
-        
-        // Check if event.data exists and is not undefined/null
         if (!event.data || event.data === 'undefined' || event.data === 'null') {
-          console.warn('🔥 SSE: Received empty or undefined data');
           return;
         }
         
         const data = JSON.parse(event.data);
         handleSSEEvent(data);
       } catch (error) {
-        console.error('🔥 SSE Parse Error:', error, 'Raw data:', event.data);
-        // Don't treat parse errors as fatal - continue listening
+        console.error('SSE Parse Error:', error, 'Raw data:', event.data);
       }
     };
 
     eventSource.onerror = (error: Event) => {
-      console.error('🔥 SSE Error:', {
+      console.error('SSE Error:', {
         error,
         readyState: eventSource.readyState,
         url: streamUrl,
@@ -349,16 +391,13 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
         retryCount
       });
       
-      // Only handle error if we're still processing
       if (isProcessing) {
-        // Try to reconnect on connection errors (up to 3 times)
         if (retryCount < 3 && eventSource.readyState === EventSource.CLOSED) {
-          console.log(`🔥 Attempting to reconnect SSE (attempt ${retryCount + 1}/3)`);
           setTimeout(() => {
             if (isProcessing) {
               connectSSE(jobId, retryCount + 1);
             }
-          }, Math.pow(2, retryCount) * 1000); // Exponential backoff: 1s, 2s, 4s
+          }, Math.pow(2, retryCount) * 1000);
           return;
         }
         
@@ -368,7 +407,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
       disconnectSSE();
     };
 
-    // Handle named events (backend sends events with specific names)
+    // Handle named events
     const eventTypes = [
       'plan', 'page_scrape_started', 'page_scrape_done',
       'image_extraction_started', 'image_extraction_done',
@@ -382,36 +421,14 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     eventTypes.forEach(eventType => {
       eventSource.addEventListener(eventType, (event: any) => {
         try {
-          // Reset connection timeout on any named event
-          if (connectionTimeoutRef.current) {
-            clearTimeout(connectionTimeoutRef.current);
-            connectionTimeoutRef.current = setTimeout(() => {
-              console.warn('🔥 SSE Connection timeout - no events received for 30 seconds');
-              if (isProcessing) {
-                eventSource.close();
-                if (retryCount < 3) {
-                  console.log('🔥 Attempting to reconnect due to timeout');
-                  connectSSE(jobId, retryCount + 1);
-                } else {
-                  setAdGenerationError(jobId, 'Connection timeout. Please try again.');
-                  setIsProcessing(false);
-                  disconnectSSE();
-                }
-              }
-            }, 30000);
-          }
-          
-          // Check if event.data exists and is not undefined/null
           if (!event.data || event.data === 'undefined' || event.data === 'null') {
-            console.warn(`🔥 SSE ${eventType}: Received empty or undefined data`);
             return;
           }
           
           const data = JSON.parse(event.data);
           handleSSEEvent({ ...data, stage: eventType });
         } catch (error) {
-          console.error(`🔥 SSE ${eventType} Parse Error:`, error, 'Raw data:', event.data);
-          // Don't treat parse errors as fatal - continue listening
+          console.error(`SSE ${eventType} Parse Error:`, error, 'Raw data:', event.data);
         }
       });
     });
@@ -428,9 +445,46 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
       connectionTimeoutRef.current = null;
     }
     setCurrentJobId(null);
-    // Clear any pending step timings
     stepStartTimes.clear();
   }, []);
+
+  // Handle ad generation
+  const handleAdGeneration = async (content: string, productUrl?: string) => {
+    if (!productUrl) {
+      const urlMatch = content.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
+      if (urlMatch && urlMatch.length > 0) {
+        productUrl = urlMatch[0];
+        if (!productUrl.startsWith('http')) {
+          productUrl = 'https://' + productUrl;
+        }
+      }
+    }
+
+    if (!productUrl) {
+      toast.error('No valid product URL found');
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      const backendJobId = await generateAdsFromProductUrl(productUrl);
+      
+      if (!backendJobId) {
+        throw new Error('No job ID returned from backend');
+      }
+      
+      setCurrentJobId(backendJobId);
+      startAdGeneration(backendJobId, content);
+      connectSSE(backendJobId);
+      
+    } catch (error: any) {
+      console.error('Ad Generation Error:', error);
+      toast.error(`Failed to start ad generation: ${error.message}`);
+      setIsProcessing(false);
+      setCurrentJobId(null);
+    }
+  };
 
   // Handle form submission
   const handleSubmit = async (value: string) => {
@@ -442,44 +496,13 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     
     if (urlMatch && urlMatch.length > 0) {
       // Handle ad generation
-      let productUrl = urlMatch[0];
-      if (!productUrl.startsWith('http')) {
-        productUrl = 'https://' + productUrl;
-      }
-
-      setIsProcessing(true);
-      
-      try {
-        // Start the backend job first to get the real job ID
-        const backendJobId = await generateAdsFromProductUrl(productUrl);
-        console.log('🔥 Backend Job Started:', backendJobId);
-        
-        if (!backendJobId) {
-          throw new Error('No job ID returned from backend');
-        }
-        
-        setCurrentJobId(backendJobId);
-        
-        // Start ad generation in the store with "thinking" stage
-        startAdGeneration(backendJobId, trimmedValue);
-        
-        // Connect to SSE
-        console.log('🔥 Connecting to SSE with job ID:', backendJobId);
-        connectSSE(backendJobId);
-        
-      } catch (error: any) {
-        console.error('🔥 Ad Generation Error:', error);
-        toast.error(`Failed to start ad generation: ${error.message}`);
-        setIsProcessing(false);
-        setCurrentJobId(null);
-      }
+      await handleAdGeneration(trimmedValue);
     } else {
-      // Handle regular chat messages
-      addMessage({
-        role: 'user',
-        type: 'text',
-        content: trimmedValue,
+      // Show toast if no URL is present
+      toast.error('Add product link to generate ad', {
+        position: 'bottom-right'
       });
+      return;
     }
 
     setInputValue("");
@@ -488,7 +511,6 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
   // Handle cancellation
   const handleCancel = async () => {
     if (!currentJobId) {
-      console.warn('🔥 Cancel requested but no current job ID');
       setIsProcessing(false);
       disconnectSSE();
       return;
@@ -499,7 +521,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
       setAdGenerationError(currentJobId, 'Generation cancelled by user');
       toast.success('Ad generation cancelled');
     } catch (error: any) {
-      console.error('🔥 Cancel error:', error);
+      console.error('Cancel error:', error);
       toast.error(`Failed to cancel: ${error.message}`);
     } finally {
       setIsProcessing(false);
@@ -507,26 +529,28 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     }
   };
 
-  const disabled = propDisabled || isProcessing;
+  // Show cancel confirmation modal
+  const showCancelModal = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const confirmed = window.confirm('Are you sure you want to cancel the ad generation?');
+      resolve(confirmed);
+    });
+  };
 
   return (
     <div className="relative w-full px-4 pb-2 pt-2 md:pt-0 lg:pt-0 xl:pt-0">
-      {isProcessing && (
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handleCancel}
-          className="absolute right-4 top-[-36px] z-10 bg-background hover:bg-destructive/10 border-destructive/50 text-destructive shadow-sm"
-        >
-          <XCircle className="mr-2 h-4 w-4" /> Cancel Generation
-        </Button>
-      )}
       <AIInputWithSearch
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        placeholder="Paste a product URL to generate ads (e.g., https://example.com/product-page) or type a message..."
-        disabled={disabled}
+        placeholder={hasValidUrl 
+          ? "Paste a product URL to generate ads or type a message..."
+          : "Add product link to generate ad"
+        }
+        disabled={propDisabled} // Don't disable based on processing
         minHeight={52}
+        isProcessing={isProcessing}
+        onCancel={handleCancel}
+        showCancelModal={showCancelModal}
         onFileSelect={(file) => {
           toast.info(`File selected: ${file.name}. File processing not yet supported.`);
         }}

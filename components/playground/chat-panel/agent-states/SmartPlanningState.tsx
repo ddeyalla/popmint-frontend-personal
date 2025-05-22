@@ -14,7 +14,7 @@ interface SmartPlanningStateProps {
   steps: PlanningStep[];
 }
 
-const iconMap: Record<string, React.ReactNode> = {
+const iconComponentMap: Record<string, React.ReactNode> = {
   "deep research": <Brain className="w-4 h-4" />,
   "shape ad concepts": <Sparkles className="w-4 h-4" />,
   "craft the ads": <ImageIcon className="w-4 h-4" />,
@@ -37,14 +37,15 @@ export function SmartPlanningState({ steps }: SmartPlanningStateProps) {
       <div className="text-[14px] text-[#181818cc] mb-4 ml-1">Here's a plan I've prepared to create the ad</div>
       <div className="flex flex-col gap-3">
         {steps.map((step) => {
-          const iconKey = Object.keys(iconMap).find((k) => step.title.toLowerCase().includes(k)) || "deep research";
+          const iconKey = Object.keys(iconComponentMap).find((k) => step.title.toLowerCase().includes(k)) || "deep research";
+          const IconComponent = iconComponentMap[iconKey];
           return (
             <div
               key={step.id}
               className="rounded-[10px] bg-[rgba(0,0,0,0.03)] px-3 py-2 flex flex-col gap-1"
             >
               <div className="flex items-center gap-2 mb-0.5">
-                <img src={iconMap[iconKey]} alt="icon" className="w-4 h-4" />
+                {IconComponent}
                 <span className="font-medium text-[14px] text-[#181818cc]">{step.title}</span>
               </div>
               {step.description && (

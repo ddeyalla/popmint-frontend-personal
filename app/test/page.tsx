@@ -125,7 +125,7 @@ export default function TestPage() {
             <ul className="list-none">
               {messages.map((msg, i) => (
                 <li key={i} className="mb-2 p-2 border rounded bg-white">
-                  <p className="font-bold">{msg.type} {msg.subType ? `(${msg.subType})` : ''}</p>
+                  <p className="font-bold">{msg.type}</p>
                   <p className="text-sm">{msg.content}</p>
                   {msg.imageUrls && (
                     <p className="text-xs text-blue-500">Has {msg.imageUrls.length} images</p>

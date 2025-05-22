@@ -74,14 +74,14 @@ function StepBubble({
 }: StepBubbleProps) {
   return (
     <div className={cn(
-      "rounded-2xl p-4 transition-all duration-300 border",
+      "rounded-[10px] p-4 transition-all duration-300 border",
       gradient,
       isActive && "shadow-lg",
       isCompleted && "shadow-sm"
     )}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+          <div className="w-6 h-6 rounded-[10px] bg-white/20 backdrop-blur-sm flex items-center justify-center">
             {icon}
           </div>
           <span className="font-medium text-gray-900">{title}</span>
@@ -97,7 +97,7 @@ function StepBubble({
         {children && (
           <button 
             onClick={onToggle}
-            className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-1 hover:bg-white/10 rounded-[10px] transition-colors"
           >
             <ChevronDown className={cn(
               "w-4 h-4 text-gray-600 transition-transform",
@@ -127,7 +127,7 @@ interface NestedStepProps {
 
 function NestedStep({ title, icon, isActive, isCompleted, children, duration }: NestedStepProps) {
   return (
-    <div className="bg-white/30 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+    <div className="bg-white/30 backdrop-blur-sm rounded-[10px] p-3 border border-white/20">
       <div className="flex items-center gap-2 mb-2">
         <div className="w-5 h-5 flex items-center justify-center">
           {isCompleted ? (
@@ -154,9 +154,9 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
   if (!isVisible) return null;
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200/50">
+    <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-[10px] p-4 border border-blue-200/50">
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-[10px] bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
           <Sparkles className="w-4 h-4 text-white" />
         </div>
         <span className="font-medium text-gray-900">Smart planning</span>
@@ -167,7 +167,7 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
       </p>
       
       <div className="space-y-3">
-        <div className="bg-white/40 backdrop-blur-sm rounded-xl p-3 border border-white/30">
+        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3">
           <div className="flex items-center gap-2 mb-1">
             <Brain className="w-4 h-4 text-blue-600" />
             <span className="font-medium text-gray-800 text-sm">Deep research</span>
@@ -177,7 +177,7 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
           </p>
         </div>
         
-        <div className="bg-white/40 backdrop-blur-sm rounded-xl p-3 border border-white/30">
+        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3">
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="w-4 h-4 text-purple-600" />
             <span className="font-medium text-gray-800 text-sm">Shape Ad concepts</span>
@@ -187,7 +187,7 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
           </p>
         </div>
         
-        <div className="bg-white/40 backdrop-blur-sm rounded-xl p-3 border border-white/30">
+        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3">
           <div className="flex items-center gap-2 mb-1">
             <ImageIcon className="w-4 h-4 text-green-600" />
             <span className="font-medium text-gray-800 text-sm">Craft the ads</span>
@@ -205,7 +205,7 @@ function ThinkingBubble({ isVisible }: { isVisible: boolean }) {
   if (!isVisible) return null;
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 max-w-fit">
+    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-[10px] max-w-fit">
       <div className="w-5 h-5 flex items-center justify-center">
         <Heart className="w-4 h-4 text-pink-500 animate-pulse" />
       </div>
@@ -220,20 +220,52 @@ function DataDisplay({ data, maxLength = 300 }: { data: any; maxLength?: number 
   
   if (!data) return null;
   
-  const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  // Better formatting for different data types
+  let content: string;
+  let isStructured = false;
+  
+  if (typeof data === 'string') {
+    content = data;
+  } else if (typeof data === 'object') {
+    isStructured = true;
+    // For structured data like scraped content, format it nicely
+    if (data.title || data.price || data.description) {
+      // Product data formatting
+      const parts = [];
+      if (data.title) parts.push(`Title: ${data.title}`);
+      if (data.price) parts.push(`Price: ${data.price}`);
+      if (data.description) parts.push(`Description: ${data.description}`);
+      if (data.features && Array.isArray(data.features) && data.features.length > 0) {
+        parts.push(`Features: ${data.features.join(', ')}`);
+      }
+      if (data.rating) parts.push(`Rating: ${data.rating}`);
+      if (data.review_count) parts.push(`Reviews: ${data.review_count}`);
+      content = parts.join('\n\n');
+    } else {
+      // Fallback to JSON
+      content = JSON.stringify(data, null, 2);
+    }
+  } else {
+    content = String(data);
+  }
+  
   const isLong = content.length > maxLength;
   const displayContent = isExpanded || !isLong ? content : content.substring(0, maxLength) + '...';
   
   return (
-    <div className="bg-white rounded-lg p-3 border border-gray-200">
-      <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono overflow-hidden">
+    <div className="bg-white rounded-[10px] p-3 shadow-sm">
+      <div className={`text-xs text-gray-600 ${isStructured ? 'whitespace-pre-line' : 'whitespace-pre-wrap'} overflow-hidden ${isStructured ? '' : 'font-mono'}`}>
         {displayContent}
-      </pre>
+      </div>
       {isLong && (
         <button 
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-blue-600 text-xs mt-2 hover:underline"
+          className="text-blue-600 text-xs mt-2 hover:underline flex items-center gap-1 transition-colors"
         >
+          <ChevronDown className={cn(
+            "w-3 h-3 transition-transform",
+            isExpanded && "rotate-180"
+          )} />
           {isExpanded ? 'Show less' : 'Show more'}
         </button>
       )}
@@ -334,7 +366,7 @@ export function ModernAdGenerationFlow({
   // Handle error state
   if (error) {
     return (
-      <div className="bg-gradient-to-br from-red-50 to-red-100/50 rounded-2xl p-4 border border-red-200">
+      <div className="bg-gradient-to-br from-red-50 to-red-100/50 rounded-[10px] p-4">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
             <span className="text-white text-sm">!</span>
@@ -359,7 +391,7 @@ export function ModernAdGenerationFlow({
         <StepBubble
           title="Research agent"
           icon={<Search className="w-4 h-4 text-purple-600" />}
-          gradient="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200/50"
+          gradient="bg-gradient-to-br from-purple-50 to-purple-100/50"
           isActive={frontendStage === 'page_scrape_started' || frontendStage === 'research_started'}
           isCompleted={isCompleted('research_done')}
           isExpanded={expandedSections.has('research')}
@@ -403,6 +435,27 @@ export function ModernAdGenerationFlow({
             </NestedStep>
           )}
           
+          {/* Main Research Results - Prominent display when completed */}
+          {isCompleted('research_done') && (scrapedContent || researchSummary) && (
+            <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3 space-y-3">
+              <div className="text-xs font-medium text-gray-700 mb-2">Research Summary</div>
+              
+              {scrapedContent && (
+                <div>
+                  <div className="text-xs font-medium text-purple-700 mb-1">Product Details</div>
+                  <DataDisplay data={scrapedContent} maxLength={300} />
+                </div>
+              )}
+              
+              {researchSummary && (
+                <div>
+                  <div className="text-xs font-medium text-purple-700 mb-1">Market Analysis</div>
+                  <DataDisplay data={researchSummary} maxLength={300} />
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* Competitor Analysis Sub-step */}
           {hasReached('research_done') && (
             <NestedStep
@@ -424,7 +477,7 @@ export function ModernAdGenerationFlow({
         <StepBubble
           title="Creative strategy agent"
           icon={<Sparkles className="w-4 h-4 text-amber-600" />}
-          gradient="bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200/50"
+          gradient="bg-gradient-to-br from-amber-50 to-amber-100/50"
           isActive={frontendStage === 'concepts_started' || frontendStage === 'ideas_started'}
           isCompleted={isCompleted('ideas_done')}
           isExpanded={expandedSections.has('creative')}
@@ -457,7 +510,7 @@ export function ModernAdGenerationFlow({
               {isCompleted('ideas_done') && adIdeas && (
                 <div className="mt-2 space-y-2">
                   {adIdeas.map((idea, index) => (
-                    <div key={index} className="bg-white rounded-lg p-3 text-xs">
+                    <div key={index} className="bg-white rounded-[10px] p-3 text-xs">
                       <div className="font-medium text-gray-800 mb-1">
                         {idea.title || `Concept ${index + 1}`}
                       </div>
@@ -481,7 +534,7 @@ export function ModernAdGenerationFlow({
         <StepBubble
           title="Creating ads"
           icon={<ImageIcon className="w-4 h-4 text-green-600" />}
-          gradient="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200/50"
+          gradient="bg-gradient-to-br from-green-50 to-green-100/50"
           isActive={frontendStage === 'images_started' || frontendStage === 'image_generation_progress'}
           isCompleted={isCompleted('images_done')}
           isExpanded={expandedSections.has('images')}
@@ -494,7 +547,7 @@ export function ModernAdGenerationFlow({
             </p>
             
             {(frontendStage === 'images_started' || frontendStage === 'image_generation_progress') && (
-              <div className="bg-white/40 backdrop-blur-sm rounded-lg p-2">
+              <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-xs text-gray-700">
@@ -515,7 +568,7 @@ export function ModernAdGenerationFlow({
                     key={index}
                     src={img}
                     alt={`Generated ad ${index + 1}`}
-                    className="w-full h-auto rounded-lg border border-white/30"
+                    className="w-full h-auto rounded-[10px]"
                   />
                 ))}
               </div>
@@ -526,7 +579,7 @@ export function ModernAdGenerationFlow({
 
       {/* Final Completion */}
       {frontendStage === 'done' && (
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-2xl p-4 border border-emerald-200">
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-[10px] p-3">
           <div className="flex items-center gap-3 mb-2">
             <CheckCircle className="w-6 h-6 text-emerald-600" />
             <span className="font-medium text-emerald-800">All ads generated successfully!</span>

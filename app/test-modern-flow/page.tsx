@@ -30,12 +30,14 @@ export default function TestModernFlowPage() {
   const mockData = {
     startTime: new Date(Date.now() - 120000), // 2 minutes ago
     scrapedContent: {
-      title: "Amazing Product",
-      description: "This is an amazing product that solves all your problems",
-      price: "$99.99",
-      features: ["Feature 1", "Feature 2", "Feature 3"]
+      title: "Unflavoured Raw Whey Protein Concentrate 26 g - The Whole Truth Foods",
+      description: "Order online from The Whole Truth Foods and get delivery within 2-7 days. This premium whey protein concentrate delivers 26g of high-quality protein per serving, perfect for muscle building and recovery. Made with clean ingredients and no artificial additives.",
+      price: "2777",
+      features: ["26g protein per serving", "No artificial additives", "Fast absorption", "Unflavored versatility"],
+      rating: "4.5",
+      review_count: "1,247"
     },
-    researchSummary: "After extensive research, we found that customers love products that are easy to use, affordable, and solve real problems. The target audience is primarily millennials and Gen Z who value convenience and sustainability. Competitors include similar products but this one stands out due to its unique features and competitive pricing. Market analysis shows strong demand for this type of product...",
+    researchSummary: "After extensive research, we found that customers love products that are easy to use, affordable, and solve real problems. The target audience is primarily millennials and Gen Z who value convenience and sustainability. Competitors include similar products but this one stands out due to its unique features and competitive pricing. Market analysis shows strong demand for this type of product with customers specifically looking for clean label supplements without artificial ingredients. The protein market is highly competitive but there's a clear opportunity for transparent brands. Customer reviews consistently mention the importance of mixability, taste (or lack thereof for unflavored), and visible results. Price sensitivity is moderate with customers willing to pay premium for quality and transparency...",
     adIdeas: [
       {
         title: "Problem-Solution Ad",

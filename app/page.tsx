@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { Heart, ImageIcon, X, ArrowUp, Store } from "lucide-react"
+import { Heart, ImageIcon, X, ArrowUp } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -86,10 +86,11 @@ const highlightUrls = (text: string): string => {
 export default function Home() {
   const router = useRouter()
   const [inputValue, setInputValue] = useState("")
-  const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null)
+  const [hasValidUrl, setHasValidUrl] = useState(false)
   const [uploadedImages, setUploadedImages] = useState<ImageData[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const contentEditableRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
@@ -268,6 +269,16 @@ export default function Home() {
   const handleSubmit = async () => {
     if (isSubmitting || (!inputValue.trim() && uploadedImages.length === 0)) return;
 
+    // Show toast if no URL is present but user wants to submit
+    if (inputValue.trim() && !hasValidUrl) {
+      // Dynamically import toast to avoid SSR issues
+      const { toast } = await import('sonner');
+      toast.error('Add product link to generate ad', {
+        position: 'bottom-right'
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -302,13 +313,12 @@ export default function Home() {
       
       // Check if input contains a product URL - if it does, mark it for ad generation
       const containsUrl = URL_REGEX.test(inputValue);
-      const isAdRequest = containsUrl && selectedSuggestion?.toLowerCase().includes('ad');
       
       // Store all required data in localStorage
       localStorage.setItem("popmint-project-name", projectName);
       localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
       
-      if (isAdRequest) {
+      if (containsUrl) {
         // Set special flag for ad generation
         console.log("[HomePage] Detected ad generation request");
         localStorage.setItem("popmint-generate-ad", "true");
@@ -327,29 +337,13 @@ export default function Home() {
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    // If there's a previously selected suggestion, remove it from the input value
-    let baseText = inputValue;
-    if (selectedSuggestion) {
-      // Remove the previous suggestion from the text
-      baseText = baseText.replace(selectedSuggestion, '').trim();
-    }
-    
-    // Set the new text with the selected suggestion
-    const newText = baseText ? `${baseText} ${suggestion}` : suggestion;
-    
-    setInputValue(newText);
-    setSelectedSuggestion(suggestion);
-    
-    // Focus the input area after suggestion click
-    contentEditableRef.current?.focus();
-    
-    // Set selection to the end of the input
-    if (contentEditableRef.current) {
-      const textLength = newText.length;
-      setCurrentSelection({ start: textLength, end: textLength });
-    }
-  }
+  // Check for valid URL in input and update state
+  useEffect(() => {
+    const containsUrl = URL_REGEX.test(inputValue);
+    setHasValidUrl(containsUrl);
+  }, [inputValue]);
+
+
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -592,29 +586,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Suggestion Pills */}
-          <div className="flex flex-wrap gap-3 mt-4 justify-center">
-            {[
-              "Facebook ad", 
-              "Instagram ad",
-              "Generate ads from URL",
-            ].map((tag) => (
-              <button
-                key={tag}
-                className={`px-5 py-2 rounded-full text-sm transition-colors flex items-center gap-1.5 ${
-                  selectedSuggestion === tag 
-                    ? "bg-blue-100 text-blue-700 border border-blue-300" 
-                    : tag.includes("ads from URL")
-                      ? "bg-green-50 hover:bg-green-100 text-green-700 border border-green-200"
-                      : "bg-slate-50 hover:bg-slate-100"
-                }`}
-                onClick={() => handleSuggestionClick(tag)}
-              >
-                {tag.includes("ads from URL") && <Store className="w-3.5 h-3.5 text-green-600" />}
-                {tag}
-              </button>
-            ))}
-          </div>
+
         </main>
       </div>
     </div>
