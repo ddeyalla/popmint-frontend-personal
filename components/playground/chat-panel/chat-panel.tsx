@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { MessageBubble } from "./message-bubble"
+import { MessageRenderer } from "./MessageRenderer"
 import { ChatInput } from "./chat-input"
 import { useChatStore } from "@/store/chatStore"
 import { CheckCircle, CircleCheck, ImageIcon, Store } from "lucide-react"
@@ -21,6 +21,12 @@ export function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { projectName, setProjectName } = useSessionStore()
   const { isSidebarCollapsed } = useCanvasStore()
+
+  // Debug logging for messages
+  console.log(`🔥 ChatPanel - Messages count: ${messages.length}`);
+  messages.forEach((msg, index) => {
+    console.log(`🔥 ChatPanel - Message ${index}: ${msg.id}, type: ${msg.type}`);
+  });
 
   // Set project name from localStorage if it exists
   useEffect(() => {
@@ -41,6 +47,7 @@ export function ChatPanel() {
         const initialMessage = JSON.parse(initialMessageStr)
         // Add the initial message to the chat
         addMessage({
+          role: "user",
           type: initialMessage.type,
           content: initialMessage.content,
           imageUrls: initialMessage.imageUrls
@@ -53,7 +60,7 @@ export function ChatPanel() {
         const isImageRequest = initialMessage.content.trim().toLowerCase().startsWith('/image') || initialMessage.content.trim().toLowerCase().includes('generate image');
         if (isImageRequest) {
           (async () => {
-            addMessage({ type: "agentProgress", content: "Generating image with DALL-E..." });
+            addMessage({ role: "assistant", type: "agent_progress", content: "Generating image with DALL-E..." });
             try {
               const proxiedUrl = await generateImageFromPrompt(initialMessage.content);
               // Add to canvas if not already present
@@ -75,19 +82,20 @@ export function ChatPanel() {
               };
               if (!imageExistsOnCanvas(proxiedUrl)) {
                 addImage(proxiedUrl, 20, 20);
-                addMessage({ type: 'agentOutput', content: 'Here is your generated image!' });
+                addMessage({ role: "assistant", type: 'agent_output', content: 'Here is your generated image!' });
               } else {
-                addMessage({ type: 'agentOutput', content: 'Image already exists on canvas.' });
+                addMessage({ role: "assistant", type: 'agent_output', content: 'Image already exists on canvas.' });
               }
             } catch (err: any) {
-              addMessage({ type: 'agentOutput', content: `Error: ${err.message || 'Failed to generate image'}` });
+              addMessage({ role: "assistant", type: 'agent_output', content: `Error: ${err.message || 'Failed to generate image'}` });
             }
           })();
         } else {
           // Add an agent response after a short delay (for demo purposes)
           setTimeout(() => {
             addMessage({ 
-              type: "agentProgress", 
+              role: "assistant",
+              type: "agent_progress", 
               content: "Thinking about your request..." 
             })
           }, 800)
@@ -128,14 +136,9 @@ export function ChatPanel() {
         <div className="flex items-center px-1 py-2 w-full">
           <div className="flex h-6 items-center gap-1 flex-1">
             <ProjectTitleDropdown />
-            <CommandHelp className="ml-2" />
           </div>
-          <div className="flex items-center gap-1 text-neutral-400 text-xs">
-            {hasImageMessages && <ImageIcon className="w-3 h-3 text-green-500" />}
-            {messages.some(m => m.subType === 'ad_concept') && 
-              <Store className="w-3 h-3 text-emerald-500" aria-label="Ad generation" />
-            }
-            <span className="tracking-[0.06px]">Auto-saved</span>
+          <div>
+            <span className="text-xs text-gray-500">Auto-saved</span>
           </div>
         </div>
       </div>
@@ -158,10 +161,9 @@ export function ChatPanel() {
                         </div>
                         <div>
                           <div className="font-medium text-gray-900">Generate product ads</div>
-                          <div className="text-gray-500 text-xs">Type <span className="font-mono text-emerald-600 bg-emerald-50 px-1 rounded">/ad</span> followed by a product URL.</div>
-                          <div className="text-gray-500 text-xs mt-1">Example: <span className="font-mono text-gray-600">/ad https://example.com/product --count=4</span></div>
+                          <div className="text-gray-500 text-xs">Paste a product URL to generate ads.</div>
+                          <div className="text-gray-500 text-xs mt-1">Example: <span className="font-mono text-gray-600">https://example.com/product</span></div>
                           <div className="text-gray-500 text-xs mt-1 italic">AI analyzes product pages to create professional marketing visuals</div>
-                          <div className="text-gray-500 text-xs mt-1">Use <span className="font-mono">--count=N</span> to specify the number of ad designs (default: 4)</div>
                         </div>
                       </div>
                     </div>
@@ -170,11 +172,11 @@ export function ChatPanel() {
               </div>
             ) : (
               messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+                <MessageRenderer key={message.id} message={message} />
               ))
             )}
 
-            {messages.length > 0 && messages[messages.length - 1].type === "agentOutput" && (
+            {messages.length > 0 && messages[messages.length - 1].type === "agent_output" && (
               <div className="flex items-center gap-2 w-full mt-2 mb-2">
                 <CircleCheck className="w-4 h-4 text-green-500" />
                 <div className="text-green-600 text-xs font-medium">Generation completed</div>

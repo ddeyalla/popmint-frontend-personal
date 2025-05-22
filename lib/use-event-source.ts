@@ -126,8 +126,12 @@ export function useEventSource(
             // Call error handler if provided
             if (onError) onError(event);
             
-            // Emit error event for consumers
-            if (onEvent) onEvent('error', { error: 'Connection closed', details: errorDetails });
+            // Emit hook-specific error event for consumers
+            if (onEvent) onEvent('hook_connection_error', { 
+              type: 'ConnectionClosed', 
+              message: 'SSE connection was closed.', 
+              details: errorDetails 
+            });
             
             // Attempt to reconnect if under max retries
             if (retryCount < maxRetries) {
@@ -138,15 +142,15 @@ export function useEventSource(
                 if (!mounted.current) return;
                 
                 console.log(`🔄 INFO - Retrying SSE connection (${retryCount + 1}/${maxRetries})...`);
-                setRetryCount(prev => prev + 1);
-                connect(targetUrl);
+                setRetryCount(prev => prev + 1); // Increment before connecting
+                connect(targetUrl); // Pass targetUrl to ensure it retries with the correct one
               }, retryDelay);
             } else {
               console.error(`🛑 ERROR - Max retries (${maxRetries}) reached for SSE connection:`, targetUrl);
-              if (onEvent) onEvent('error', { 
-                error: 'Max connection retries reached', 
-                maxRetries,
-                retryCount 
+              if (onEvent) onEvent('hook_connection_error', { 
+                type: 'MaxRetriesReached', 
+                message: 'Max SSE connection retries reached.',
+                details: { maxRetries, retryCount, url: targetUrl }
               });
             }
             break;
@@ -159,8 +163,12 @@ export function useEventSource(
             // Call error handler if provided
             if (onError) onError(event);
             
-            // Emit error event for consumers
-            if (onEvent) onEvent('error', { error: 'Connection error', details: errorDetails });
+            // Emit hook-specific error event for consumers
+            if (onEvent) onEvent('hook_connection_error', { 
+              type: 'GenericConnectionError', 
+              message: 'A generic SSE connection error occurred.',
+              details: errorDetails 
+            });
         }
       };
       
@@ -197,7 +205,28 @@ export function useEventSource(
         });
         
         // Handle any other custom events the server might send
-        ['agentProgress', 'agentOutput', 'progress', 'complete', 'cancelled'].forEach(eventName => {
+        [
+          // Original events
+          'agentProgress', 'agentOutput', 'progress', 'complete', 'cancelled',
+          // Stages from backenddoc.md (excluding 'error' which is handled separately)
+          'plan',
+          'page_scrape_started', 'page_scrape_done',
+          'image_extraction_started', 'image_extraction_done',
+          'research_started', 'research_done',
+          'concepts_started', 'concepts_done',
+          'ideas_started', 'ideas_done',
+          'images_started', 'image_generation_progress', 'images_done',
+          'done',
+          // Events that chat-input.tsx listens for, potentially aliased or custom
+          // These might be redundant if backend sends standard stages, but included for broader capture initially
+          'planning_step_updated',
+          'research_completed', // Likely alias for research_done
+          'creative_strategy_completed', // Custom or alias?
+          'ad_concepts_generated', // Likely alias for concepts_done
+          'ad_image_generated', // Likely alias for image_generation_progress
+          'pipeline_completed', // Likely alias for done
+          'pipeline_failed' // Likely alias for error
+        ].forEach(eventName => {
           eventSource.addEventListener(eventName, (event: any) => {
             if (!mounted.current) return;
             

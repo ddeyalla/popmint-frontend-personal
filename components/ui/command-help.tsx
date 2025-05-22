@@ -20,16 +20,14 @@ interface CommandHelpProps {
 export function CommandHelp({ className }: CommandHelpProps) {
   const [isOpen, setIsOpen] = useState(false)
   
-  const commands = [
-    {
-      name: "/ad",
-      icon: <Store className="w-4 h-4 text-emerald-600" />,
-      description: "Generate professional ad concepts based on a product URL",
-      example: "/ad https://example.com/product --count=4",
-      bgColor: "bg-emerald-50",
-      borderColor: "border-emerald-100"
-    }
-  ]
+  const commands: Array<{
+    name: string;
+    icon: React.ReactNode;
+    description: string;
+    example: string;
+    bgColor: string;
+    borderColor: string;
+  }> = []
   
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>

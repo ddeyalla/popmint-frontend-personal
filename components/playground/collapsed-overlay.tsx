@@ -33,7 +33,7 @@ export function CollapsedOverlay({ position = "right" }: { position?: "left" | "
         {/* Project name + status */}
         <div className="flex items-center gap-2 px-2 py-2">
           <ProjectTitleDropdown />
-          <span className="text-[12px] font-medium text-[rgba(0,0,0,0.5)] tracking-[0.5%]">Auto-saved</span>
+          <span className="text-sm font-medium text-[rgba(0,0,0,0.5)] tracking-[0.5%]">Auto-saved</span>
         </div>
       </div>
     </div>

@@ -4,9 +4,9 @@ import ClientSidePlayground from "./client";
 
 
 interface PlaygroundPageProps {
-  params: { 
+  params: Promise<{ 
     sessionId: string;
-  };
+  }>;
 }
 
 // Make the component async to allow awaiting params

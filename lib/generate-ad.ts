@@ -1,5 +1,3 @@
-import { adGenerationService, GenerateAdRequest } from '@/lib/ad-generation-service';
-
 /**
  * Helper functions for the ad generation API
  */
@@ -23,7 +21,7 @@ export async function generateAdsFromProductUrl(productUrl: string, imageCount: 
       },
       body: JSON.stringify({
         product_url: productUrl,
-        num_images: imageCount
+        n_images: imageCount
       }),
     });
     
@@ -90,6 +88,42 @@ export async function cancelAdGeneration(jobId: string): Promise<boolean> {
 }
 
 /**
+ * Check if the ad generation service is healthy
+ * 
+ * @returns A Promise that resolves to true if the service is healthy
+ */
+export async function checkAdGenerationHealth(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/proxy/healthz');
+    if (!response.ok) {
+      return false;
+    }
+    
+    const text = await response.text();
+    return text === 'pong';
+  } catch (error) {
+    console.error('Ad generation health check failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Extracts a product URL from text content
+ * 
+ * @param content The text to analyze
+ * @returns The extracted URL or null if none found
+ */
+export function extractProductUrl(content: string): string | null {
+  // Try to extract any URL from the content
+  const urlMatch = content.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
+  if (urlMatch && urlMatch.length > 0) {
+    return urlMatch[0];
+  }
+  
+  return null;
+}
+
+/**
  * Types for the ad generation API
  */
 
@@ -129,50 +163,4 @@ export interface AdGenerationSSEEvent {
   message?: string;
   data?: any;
   errorCode?: AdGenerationErrorCode;
-}
-
-/**
- * Check if the ad generation service is healthy
- * 
- * @returns A Promise that resolves to true if the service is healthy
- */
-export async function checkAdGenerationHealth(): Promise<boolean> {
-  try {
-    return await adGenerationService.checkHealth();
-  } catch (error) {
-    console.error('Ad generation health check failed:', error);
-    return false;
-  }
-}
-
-/**
- * Extracts a product URL from text content
- * 
- * @param content The text to analyze
- * @returns The extracted URL or null if none found
- */
-export function extractProductUrl(content: string): string | null {
-  // First check if content contains a command pattern
-  if (content.toLowerCase().startsWith('/ad')) {
-    const commandText = content.replace(/^\/ad\s+/i, '').trim();
-    
-    // Check for flags like --count=4
-    const countMatch = commandText.match(/(--count=|--n=|-n=)(\d+)$/);
-    
-    if (countMatch) {
-      // Extract URL without the count flag
-      return commandText.replace(countMatch[0], '').trim();
-    }
-    
-    // Return the whole text after the command
-    return commandText;
-  }
-  
-  // Otherwise try to extract any URL
-  const urlMatch = content.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
-  if (urlMatch && urlMatch.length > 0) {
-    return urlMatch[0];
-  }
-  
-  return null;
 } 

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     console.log('🔍 DEBUG - Making request to OpenAI DALL-E API with model: dall-e-3');
     
     const response = await openai.images.generate({
-      model: 'dall-e-3',
+      model: 'gpt-image-1',
       prompt,
       n: 1,
       size: '1024x1024',
