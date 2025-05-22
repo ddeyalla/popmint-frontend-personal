@@ -1,64 +1,57 @@
 "use client";
 
+import { Brain, Sparkles, Image as ImageIcon } from "lucide-react";
 import React from "react";
-import { Wand2, Brain, FileText, Code, Sparkles } from "lucide-react"; 
 
 export interface PlanningStep {
   id: string;
   title: string;
   description?: string;
   status: "pending" | "active" | "completed" | "error";
-  icon: React.ElementType;
-  agent?: "research" | "creative" | "generation";
-  data?: any;
 }
 
 interface SmartPlanningStateProps {
   steps: PlanningStep[];
 }
 
-const getIconForStep = (title: string): React.ElementType => {
-  const lowerTitle = title.toLowerCase();
-  if (lowerTitle.includes("deep research")) return Code; 
-  if (lowerTitle.includes("shape ad concepts")) return Wand2;
-  if (lowerTitle.includes("craft the ads")) return Sparkles;
-  return Brain; // Default icon
+const iconMap: Record<string, React.ReactNode> = {
+  "deep research": <Brain className="w-4 h-4" />,
+  "shape ad concepts": <Sparkles className="w-4 h-4" />,
+  "craft the ads": <ImageIcon className="w-4 h-4" />,
 };
 
 export function SmartPlanningState({ steps }: SmartPlanningStateProps) {
   return (
-    <div className="flex flex-col gap-3 w-full p-4 rounded-lg bg-[#E9EAF4] shadow-sm text-[#333]">
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-6 w-6 text-purple-600" /> 
-        <span className="text-md font-semibold text-gray-800">Smart planning</span>
+    <div
+      className="w-full rounded-[15px] bg-gradient-to-b from-[#DBEAFE] to-white p-5 shadow-sm"
+      style={{ minWidth: 320, maxWidth: 400 }}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-6 h-6">
+            <img src="/Users/divyanshudv/Desktop/popmint-personal/popmint/public/chat-icons/smart-planning.svg" alt="star" className="w-4 h-4" />
+          </span>
+          <span className="font-semibold text-[15px] text-black">Smart planning</span>
+        </div>
       </div>
-      
-      <p className="text-sm text-gray-600 ml-1">Here's a plan I've prepared to create the ad</p>
-      
-      <div className="flex flex-col gap-3 mt-2">
+      <div className="text-[14px] text-[#181818cc] mb-4 ml-1">Here's a plan I've prepared to create the ad</div>
+      <div className="flex flex-col gap-3">
         {steps.map((step) => {
-          const StepSpecificIcon = step.icon || getIconForStep(step.title);
-
+          const iconKey = Object.keys(iconMap).find((k) => step.title.toLowerCase().includes(k)) || "deep research";
           return (
             <div
               key={step.id}
-              className="flex items-start gap-3 p-3 rounded-md bg-[#F5F6FA] hover:shadow-sm transition-shadow"
+              className="rounded-[10px] bg-[rgba(0,0,0,0.03)] px-3 py-2 flex flex-col gap-1"
             >
-              {StepSpecificIcon && (
-                <div className="flex-shrink-0 mt-1">
-                  <StepSpecificIcon className="h-5 w-5 text-gray-700" />
+              <div className="flex items-center gap-2 mb-0.5">
+                <img src={iconMap[iconKey]} alt="icon" className="w-4 h-4" />
+                <span className="font-medium text-[14px] text-[#181818cc]">{step.title}</span>
+              </div>
+              {step.description && (
+                <div className="text-[14px] text-[#181818cc] leading-snug">
+                  {step.description}
                 </div>
               )}
-              <div className="flex-grow">
-                <span className="block text-sm font-medium text-gray-800">
-                  {step.title}
-                </span>
-                {step.description && (
-                  <p className="text-xs text-gray-600 mt-0.5">
-                    {step.description}
-                  </p>
-                )}
-              </div>
             </div>
           );
         })}

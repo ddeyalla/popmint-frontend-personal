@@ -17,9 +17,20 @@ export type AdGenerationStage =
 export type MessageType = 
   | 'text'
   | 'ad_generation'
+  | 'ad_step_complete'
   | 'agent_progress'
   | 'agent_output'
   | 'error';
+
+// Step timing information
+export interface StepTiming {
+  stage: AdGenerationStage;
+  startTime: Date;
+  endTime?: Date;
+  duration?: number; // in milliseconds
+  message?: string;
+  data?: any;
+}
 
 // Simplified ad generation data
 export interface AdGenerationData {
@@ -41,6 +52,8 @@ export interface AdGenerationData {
   // Timing
   startTime?: Date;
   stageStartTime?: Date;
+  stepTimings: StepTiming[]; // Track all completed steps
+  currentStepStartTime?: Date;
 }
 
 export interface ChatMessage {
@@ -69,6 +82,7 @@ interface ChatState {
   // Ad generation specific actions
   startAdGeneration: (jobId: string, userMessage: string) => void;
   updateAdGeneration: (jobId: string, stage: AdGenerationStage, data?: Partial<AdGenerationData>) => void;
+  completeAdGenerationStep: (jobId: string, stage: AdGenerationStage, message: string, data?: any) => void;
   addGeneratedImage: (jobId: string, imageUrl: string) => void;
   setAdGenerationError: (jobId: string, error: string, errorCode?: string) => void;
   completeAdGeneration: (jobId: string, images?: string[]) => void;
@@ -112,6 +126,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       progress: 0,
       startTime: new Date(),
       stageStartTime: new Date(),
+      stepTimings: [],
+      currentStepStartTime: new Date(),
     };
 
     // Add user message
@@ -142,7 +158,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const updatedJob: AdGenerationData = {
         ...state.currentJob,
         stage,
-        stageStartTime: new Date(),
+        currentStepStartTime: new Date(),
         ...data,
       };
 
@@ -159,6 +175,53 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return {
         currentJob: updatedJob,
         messages: updatedMessages,
+      };
+    });
+  },
+
+  completeAdGenerationStep: (jobId, stage, message, data) => {
+    set((state) => {
+      if (!state.currentJob || state.currentJob.jobId !== jobId) {
+        return state;
+      }
+
+      const now = new Date();
+      const stepStartTime = state.currentJob.currentStepStartTime || now;
+      const duration = now.getTime() - stepStartTime.getTime();
+
+      // Create step timing record
+      const stepTiming: StepTiming = {
+        stage,
+        startTime: stepStartTime,
+        endTime: now,
+        duration,
+        message,
+        data,
+      };
+
+      // Add persistent step completion message
+      const stepMessage: ChatMessage = {
+        id: uuidv4(),
+        role: 'assistant',
+        type: 'ad_step_complete',
+        content: message,
+        timestamp: now,
+        adData: {
+          ...state.currentJob,
+          stepTimings: [...state.currentJob.stepTimings, stepTiming],
+        },
+      };
+
+      // Update current job with completed step
+      const updatedJob: AdGenerationData = {
+        ...state.currentJob,
+        stepTimings: [...state.currentJob.stepTimings, stepTiming],
+        currentStepStartTime: now, // Ready for next step
+      };
+
+      return {
+        currentJob: updatedJob,
+        messages: [...state.messages, stepMessage],
       };
     });
   },

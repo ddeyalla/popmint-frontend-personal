@@ -59,14 +59,33 @@ export function MessageRenderer({ message }: MessageRendererProps) {
         </div>
       );
 
+    case 'ad_step_complete':
+      const stepTiming = message.adData?.stepTimings?.[message.adData.stepTimings.length - 1];
+      const duration = stepTiming?.duration ? `${(stepTiming.duration / 1000).toFixed(1)}s` : '';
+      
+      return (
+        <div className="flex w-full justify-start">
+          <div className="flex items-center gap-2 p-2">
+            <span className="text-green-700">{message.content}</span>
+            {duration && (
+              <span className="text-green-500 text-sm">
+                {duration}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+
     case 'agent_progress':
       return (
         <div className="flex w-full justify-start">
-          <div className="max-w-[80%] p-3 rounded-lg bg-blue-50 text-blue-700">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span>{message.content}</span>
-            </div>
+          <div className="flex items-center gap-2 p-2">
+            <img 
+              src="/popmint_logo.svg" 
+              alt="PopMint" 
+              className="w-4 h-4 animate-spin"
+            />
+            <span className="text-gray-700">{message.content}</span>
           </div>
         </div>
       );

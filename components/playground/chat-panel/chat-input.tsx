@@ -20,6 +20,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
     addMessage,
     startAdGeneration,
     updateAdGeneration,
+    completeAdGenerationStep,
     addGeneratedImage,
     setAdGenerationError,
     completeAdGeneration,
@@ -97,12 +98,24 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
 
       switch (stage) {
         case 'error':
+          completeAdGenerationStep(
+            eventJobId, 
+            'error', 
+            `❌ Error: ${message || 'Unknown error occurred'}`,
+            { errorCode: errorCode }
+          );
           setAdGenerationError(eventJobId, message || 'Unknown error occurred');
           setIsProcessing(false);
           disconnectSSE();
           break;
 
         case 'done':
+          completeAdGenerationStep(
+            eventJobId, 
+            'completed', 
+            `🎉 All ads generated successfully!`,
+            { finalImages: data?.imageUrls || [] }
+          );
           completeAdGeneration(eventJobId, data?.imageUrls || []);
           setIsProcessing(false);
           disconnectSSE();
@@ -123,11 +136,12 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           break;
 
         case 'page_scrape_done':
-          updateAdGeneration(eventJobId, 'scraping', {
-            progress: pct,
-            message: 'Product details extracted',
-            scrapedContent: data?.scraped_content_summary,
-          });
+          completeAdGenerationStep(
+            eventJobId, 
+            'scraping', 
+            `✅ Product details extracted`,
+            data?.scraped_content_summary
+          );
           break;
 
         case 'research_started':
@@ -138,11 +152,12 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           break;
 
         case 'research_done':
-          updateAdGeneration(eventJobId, 'researching', {
-            progress: pct,
-            message: 'Research completed',
-            researchSummary: data?.summary,
-          });
+          completeAdGenerationStep(
+            eventJobId, 
+            'researching', 
+            `✅ Research completed`,
+            { researchSummary: data?.summary }
+          );
           break;
 
         case 'concepts_started':
@@ -153,10 +168,12 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           break;
 
         case 'concepts_done':
-          updateAdGeneration(eventJobId, 'concepting', {
-            progress: pct,
-            message: '✓ Ad concepts generated. Moving to next step...',
-          });
+          completeAdGenerationStep(
+            eventJobId, 
+            'concepting', 
+            `✅ Ad concepts generated`,
+            data?.concepts
+          );
           break;
 
         case 'ideas_started':
@@ -167,11 +184,12 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           break;
 
         case 'ideas_done':
-          updateAdGeneration(eventJobId, 'ideating', {
-            progress: pct,
-            message: 'Ad ideas generated',
-            adIdeas: data?.ideas,
-          });
+          completeAdGenerationStep(
+            eventJobId, 
+            'ideating', 
+            `✅ Ad ideas generated`,
+            { adIdeas: data?.ideas }
+          );
           break;
 
         case 'images_started':
@@ -194,17 +212,26 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           break;
 
         case 'images_done':
-          updateAdGeneration(eventJobId, 'imaging', {
-            progress: pct,
-            message: '✓ Ads generated.',
-            generatedImages: data?.generated_image_urls,
-          });
+          completeAdGenerationStep(
+            eventJobId, 
+            'imaging', 
+            `✅ Ads generated`,
+            { generatedImages: data?.generated_image_urls }
+          );
           break;
 
-        // Skip image extraction events (no UI updates per Frontend-flow.md)
+        // Skip image extraction started (no UI updates per Frontend-flow.md)
         case 'image_extraction_started':
+          // No UI updates for this stage
+          break;
+          
         case 'image_extraction_done':
-          // No UI updates for these stages
+          completeAdGenerationStep(
+            eventJobId, 
+            'scraping', 
+            `✅ Product images extracted`,
+            { extractedImages: data?.extracted_image_urls }
+          );
           break;
 
         // Heartbeat events - no UI updates needed
@@ -223,7 +250,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
       console.error('🔥 Error handling SSE event:', error, 'Event data:', eventData);
       // Don't break the connection for individual event errors
     }
-  }, [updateAdGeneration, addGeneratedImage, setAdGenerationError, completeAdGeneration, setIsProcessing]);
+  }, [updateAdGeneration, completeAdGenerationStep, addGeneratedImage, setAdGenerationError, completeAdGeneration, setIsProcessing]);
 
   // Connect to SSE stream with retry logic
   const connectSSE = useCallback((jobId: string, retryCount = 0) => {

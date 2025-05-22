@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Heart, Sparkles, CheckCircle, Loader2, Search, Lightbulb, Wand2, AlertCircle, Clock } from "lucide-react";
+import { Heart, Sparkles, CheckCircle, Loader2, Search, Lightbulb, Wand2, AlertCircle, Clock, CircleCheck } from "lucide-react";
 import { Stage, getSmartPlanningSteps, calculateDuration } from "@/lib/agent-state-mapper";
 import { SmartPlanningState } from "./SmartPlanningState";
 
@@ -24,7 +24,7 @@ function StageLoader({
   title, 
   message, 
   bgColor = "bg-blue-50", 
-  borderColor = "border-blue-200",
+  borderColor = "border-[blue-200]",
   textColor = "text-blue-800",
   iconColor = "text-blue-500"
 }: {
@@ -37,10 +37,10 @@ function StageLoader({
   iconColor?: string;
 }) {
   return (
-    <div className={`flex flex-col gap-2 w-full p-3 rounded-lg ${bgColor} border ${borderColor}`}>
+    <div className={`flex flex-col gap-2 w-full p-3 rounded-[10px] ${bgColor} border ${borderColor}`}>
       <div className="flex items-center gap-2">
         <Icon className={`h-4 w-4 ${iconColor}`} />
-        <span className={`font-medium ${textColor}`}>{title}</span>
+        <span className={`font-normal ${textColor}`}>{title}</span>
         <Loader2 className={`h-4 w-4 ${iconColor} animate-spin ml-auto`} />
       </div>
       <div className={`text-sm ${textColor} italic flex items-center gap-1`}>
@@ -71,11 +71,11 @@ function CompletedStage({
   iconColor?: string;
 }) {
   return (
-    <div className={`flex flex-col gap-2 w-full p-3 rounded-lg ${bgColor} border ${borderColor}`}>
+    <div className={`flex flex-col gap-2 w-full p-3 rounded-[10px] ${bgColor} border ${borderColor}`}>
       <div className="flex items-center gap-2">
         <Icon className={`h-4 w-4 ${iconColor}`} />
-        <span className={`font-medium ${textColor}`}>{title}</span>
-        <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
+        <span className={`font-normal ${textColor}`}>{title}</span>
+        <CircleCheck className="h-4 w-4 text-green-500 ml-auto" />
       </div>
       {children}
     </div>
@@ -103,7 +103,7 @@ export function AdGenerationState({
         <div className="animate-pulse">
           <Heart className="h-5 w-5 text-pink-500 fill-pink-500" />
         </div>
-        <span className="font-medium text-slate-600">thinking</span>
+        <span className="font-normal text-slate-600">thinking</span>
         <span className="animate-bounce" style={{ animationDelay: '0.0s' }}>.</span>
         <span className="animate-bounce" style={{ animationDelay: '0.1s' }}>.</span>
         <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>.</span>
@@ -120,10 +120,10 @@ export function AdGenerationState({
   // Handle error state
   if (currentStage === "error") {
     return (
-      <div className="flex flex-col gap-2 w-full p-4 rounded-lg bg-red-50 border border-red-200">
+      <div className="flex flex-col gap-2 w-full p-4 rounded-[10px] bg-red-50 border border-red-200">
         <div className="flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-red-500" />
-          <span className="font-medium text-red-800">Error</span>
+          <span className="font-normal text-red-800">Error</span>
         </div>
         <p className="text-red-700 text-sm">
           {error || "An error occurred during ad generation"}
@@ -136,10 +136,10 @@ export function AdGenerationState({
   if (currentStage === "done") {
     const duration = startTime ? calculateDuration(startTime, new Date()) : "";
     return (
-      <div className="flex flex-col gap-2 w-full p-4 rounded-lg bg-green-50 border border-green-200">
+      <div className="flex flex-col gap-2 w-full p-4 rounded-[10px] bg-green-50 border border-green-200">
         <div className="flex items-center gap-2">
           <CheckCircle className="h-5 w-5 text-green-500" />
-          <span className="font-medium text-green-800">All ads generated successfully!</span>
+          <span className="font-normal text-green-800">All ads generated successfully!</span>
         </div>
         {duration && (
           <div className="text-sm text-gray-600 flex items-center gap-1">
@@ -154,7 +154,7 @@ export function AdGenerationState({
                 key={index}
                 src={imageUrl}
                 alt={`Generated ad ${index + 1}`}
-                className="rounded-md w-full h-auto object-contain border border-gray-200"
+                className="rounded-[10px] w-full h-auto object-contain border border-gray-200"
               />
             ))}
           </div>
@@ -275,7 +275,7 @@ export function AdGenerationState({
               textColor="text-purple-800"
               iconColor="text-purple-500"
             >
-              <div className="text-sm text-green-600 font-medium">
+              <div className="text-sm text-green-600 font-normal">
                 ✓ Moving to next step...
               </div>
             </CompletedStage>
@@ -309,7 +309,7 @@ export function AdGenerationState({
                 <div className="mt-2 space-y-2">
                   {adIdeas.map((idea, index) => (
                     <div key={index} className="p-2 bg-white rounded border text-sm">
-                      <div className="font-medium text-gray-800">
+                      <div className="font-normal text-gray-800">
                         {idea.title || `Ad Idea ${index + 1}`}
                       </div>
                       {idea.headline && (
@@ -329,10 +329,10 @@ export function AdGenerationState({
 
       {/* Images Stage */}
       {hasReached("images_started") && (
-        <div className="flex flex-col gap-2 w-full p-3 rounded-lg bg-pink-50 border border-pink-200">
+        <div className="flex flex-col gap-2 w-full p-3 rounded-[10px] bg-pink-50 border border-pink-200">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-pink-500" />
-            <span className="font-medium text-pink-800">Generating ads</span>
+            <span className="font-normal text-pink-800">Generating ads</span>
             {(currentStage === "images_started" || currentStage === "image_generation_progress") && (
               <Loader2 className="h-4 w-4 text-pink-500 animate-spin ml-auto" />
             )}
@@ -359,7 +359,7 @@ export function AdGenerationState({
                   <img 
                     src={imageUrl} 
                     alt={`Generated image ${currentImage}`}
-                    className="rounded-md max-h-[150px] w-auto object-contain border border-gray-200"
+                    className="rounded-[10px] max-h-[150px] w-auto object-contain border border-gray-200"
                   />
                 </div>
               )}
@@ -367,7 +367,7 @@ export function AdGenerationState({
           )}
           
           {hasReached("images_done") && currentStage !== "images_started" && currentStage !== "image_generation_progress" && (
-            <div className="text-sm text-green-600 font-medium">
+            <div className="text-sm text-green-600 font-normal">
               ✓ Ads generated.
             </div>
           )}
@@ -379,7 +379,7 @@ export function AdGenerationState({
                   key={index}
                   src={imageUrl}
                   alt={`Generated ad ${index + 1}`}
-                  className="rounded-md w-full h-auto object-contain border border-gray-200"
+                  className="rounded-[10px] w-full h-auto object-contain border border-gray-200"
                 />
               ))}
             </div>
