@@ -11,6 +11,9 @@ interface ChatInputProps {
   disabled?: boolean;
 }
 
+// Track step start times for better timing
+const stepStartTimes = new Map<string, { stage: string; startTime: Date }>();
+
 const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
   const [inputValue, setInputValue] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -96,6 +99,46 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
 
       console.log('🔥 SSE Event:', { jobId: eventJobId, stage, mappedStage, message, pct, data });
 
+      // Track step start times
+      const stepKey = `${eventJobId}-${stage}`;
+      
+      // For "*_started" events, record start time
+      if (stage.endsWith('_started')) {
+        stepStartTimes.set(stepKey, { stage, startTime: new Date() });
+      }
+      
+      // For "*_done" events, calculate duration and complete step
+      if (stage.endsWith('_done')) {
+        const startKey = `${eventJobId}-${stage.replace('_done', '_started')}`;
+        const startData = stepStartTimes.get(startKey);
+        
+        if (startData) {
+          const duration = new Date().getTime() - startData.startTime.getTime();
+          completeAdGenerationStep(
+            eventJobId, 
+            mappedStage, 
+            `✅ ${getStageDisplayName(stage)}`,
+            { 
+              ...data,
+              duration,
+              stage: stage.replace('_done', ''),
+              startTime: startData.startTime,
+              endTime: new Date()
+            }
+          );
+          stepStartTimes.delete(startKey);
+        } else {
+          // Fallback if we missed the start event
+          completeAdGenerationStep(
+            eventJobId, 
+            mappedStage, 
+            `✅ ${getStageDisplayName(stage)}`,
+            data
+          );
+        }
+        return;
+      }
+
       switch (stage) {
         case 'error':
           completeAdGenerationStep(
@@ -131,33 +174,15 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
         case 'page_scrape_started':
           updateAdGeneration(eventJobId, 'scraping', {
             progress: pct,
-            message: 'Checking product details...',
+            message: 'Checking your product details...',
           });
-          break;
-
-        case 'page_scrape_done':
-          completeAdGenerationStep(
-            eventJobId, 
-            'scraping', 
-            `✅ Product details extracted`,
-            data?.scraped_content_summary
-          );
           break;
 
         case 'research_started':
           updateAdGeneration(eventJobId, 'researching', {
             progress: pct,
-            message: 'Researching...',
+            message: 'Researching your product...',
           });
-          break;
-
-        case 'research_done':
-          completeAdGenerationStep(
-            eventJobId, 
-            'researching', 
-            `✅ Research completed`,
-            { researchSummary: data?.summary }
-          );
           break;
 
         case 'concepts_started':
@@ -167,29 +192,11 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           });
           break;
 
-        case 'concepts_done':
-          completeAdGenerationStep(
-            eventJobId, 
-            'concepting', 
-            `✅ Ad concepts generated`,
-            data?.concepts
-          );
-          break;
-
         case 'ideas_started':
           updateAdGeneration(eventJobId, 'ideating', {
             progress: pct,
             message: 'Generating ad copy ideas...',
           });
-          break;
-
-        case 'ideas_done':
-          completeAdGenerationStep(
-            eventJobId, 
-            'ideating', 
-            `✅ Ad ideas generated`,
-            { adIdeas: data?.ideas }
-          );
           break;
 
         case 'images_started':
@@ -211,27 +218,9 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           });
           break;
 
-        case 'images_done':
-          completeAdGenerationStep(
-            eventJobId, 
-            'imaging', 
-            `✅ Ads generated`,
-            { generatedImages: data?.generated_image_urls }
-          );
-          break;
-
         // Skip image extraction started (no UI updates per Frontend-flow.md)
         case 'image_extraction_started':
           // No UI updates for this stage
-          break;
-          
-        case 'image_extraction_done':
-          completeAdGenerationStep(
-            eventJobId, 
-            'scraping', 
-            `✅ Product images extracted`,
-            { extractedImages: data?.extracted_image_urls }
-          );
           break;
 
         // Heartbeat events - no UI updates needed
@@ -251,6 +240,24 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
       // Don't break the connection for individual event errors
     }
   }, [updateAdGeneration, completeAdGenerationStep, addGeneratedImage, setAdGenerationError, completeAdGeneration, setIsProcessing]);
+
+  // Helper function to get display names for stages
+  const getStageDisplayName = (stage: string): string => {
+    switch (stage) {
+      case 'page_scrape_done':
+        return 'Product details extracted';
+      case 'research_done':
+        return 'Research completed';
+      case 'concepts_done':
+        return 'Ad concepts generated';
+      case 'ideas_done':
+        return 'Ad ideas generated';
+      case 'images_done':
+        return 'Ads generated';
+      default:
+        return stage.replace('_done', '').replace('_', ' ');
+    }
+  };
 
   // Connect to SSE stream with retry logic
   const connectSSE = useCallback((jobId: string, retryCount = 0) => {
@@ -421,6 +428,8 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
       connectionTimeoutRef.current = null;
     }
     setCurrentJobId(null);
+    // Clear any pending step timings
+    stepStartTimes.clear();
   }, []);
 
   // Handle form submission

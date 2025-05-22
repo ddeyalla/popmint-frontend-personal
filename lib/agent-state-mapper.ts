@@ -1,5 +1,5 @@
 import { PlanningStep } from "@/components/playground/chat-panel/agent-states/SmartPlanningState";
-import { Code, Wand2, Sparkles } from "lucide-react";
+import { Code, Wand2, Sparkles, Brain } from "lucide-react";
 
 // Define the types for SSE events - updated to match backend exactly
 export type Stage =
@@ -87,7 +87,7 @@ export function getSmartPlanningSteps(currentStage: Stage): PlanningStep[] {
       description: "Dive into the product page, real reviews, and top performing competitor ads",
       status: "pending",
       agent: "research",
-      icon: Code
+      icon: Brain
     },
     {
       id: "concepts", 
