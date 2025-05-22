@@ -279,10 +279,11 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
       const canvasStore = useCanvasStore.getState();
       
       // Constants for positioning
-      const DEFAULT_IMAGE_WIDTH = 180;
-      const IMAGE_SPACING = 40; // 40px spacing between images
+      const DEFAULT_IMAGE_WIDTH = 512;
+      const EDGE_TO_EDGE_SPACING = 40; // 40px spacing between image edges
       const START_X = 20;
       const VERTICAL_SPACING = 40;
+      const BORDER_WIDTH = 10; // 10px border around images
       
       // Calculate starting Y position - place below existing content
       const existingObjects = canvasStore.objects;
@@ -293,7 +294,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
         startY = maxY + VERTICAL_SPACING;
       }
       
-      // Add each image in a single row with 40px spacing
+      // Add each image in a single row with exact 40px edge-to-edge spacing
       imageUrls.forEach((url: string, index: number) => {
         try {
           // Handle proxying for external URLs
@@ -316,9 +317,24 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
           });
           
           if (!imageExists) {
-            // Calculate X position: start + index * (image_width + spacing)
-            const x = START_X + index * (DEFAULT_IMAGE_WIDTH + IMAGE_SPACING);
-            canvasStore.addImage(proxiedUrl, x, startY);
+            // Calculate X position for 40px edge-to-edge spacing:
+            // Image 1: START_X
+            // Image 2: START_X + DEFAULT_IMAGE_WIDTH + EDGE_TO_EDGE_SPACING
+            // Image 3: START_X + 2 * (DEFAULT_IMAGE_WIDTH + EDGE_TO_EDGE_SPACING)
+            const x = START_X + index * (DEFAULT_IMAGE_WIDTH + EDGE_TO_EDGE_SPACING);
+            
+            // Add image with 10px border
+            canvasStore.addObject({
+              type: "image",
+              x,
+              y: startY,
+              width: DEFAULT_IMAGE_WIDTH,
+              height: DEFAULT_IMAGE_WIDTH, // Use square images initially
+              src: proxiedUrl,
+              stroke: "#e5e7eb", // Light gray border
+              strokeWidth: BORDER_WIDTH,
+              draggable: true,
+            });
           }
         } catch (imgErr) {
           console.error(`Error adding image ${index} to canvas:`, imgErr);
@@ -538,8 +554,8 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
   };
 
   return (
-    <div className="relative w-full px-4 pb-2 pt-2 md:pt-0 lg:pt-0 xl:pt-0">
-      <AIInputWithSearch
+    <div className="relative w-full px-1 py-1 rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]">
+            <AIInputWithSearch
         onChange={setInputValue}
         onSubmit={handleSubmit}
         placeholder={hasValidUrl 

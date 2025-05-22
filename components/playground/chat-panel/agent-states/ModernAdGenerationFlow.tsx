@@ -6,7 +6,7 @@ import {
   Sparkles, 
   Image as ImageIcon, 
   Search, 
-  CheckCircle, 
+  CircleCheck, 
   ChevronDown,
   Clock,
   Heart
@@ -74,19 +74,19 @@ function StepBubble({
 }: StepBubbleProps) {
   return (
     <div className={cn(
-      "rounded-[10px] p-4 transition-all duration-300 border",
+      "rounded-[10px] p-2 transition-all duration-300",
       gradient,
       isActive && "shadow-lg",
       isCompleted && "shadow-sm"
     )}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-[10px] bg-white/20 backdrop-blur-sm flex items-center justify-center">
+          <div className="w-4 h-4 rounded-[10px] bg-white/20 backdrop-blur-sm flex items-center justify-center">
             {icon}
           </div>
           <span className="font-medium text-gray-900">{title}</span>
           {isActive && <AnimatedDots />}
-          {isCompleted && <CheckCircle className="w-4 h-4 text-green-600" />}
+          {isCompleted && <CircleCheck className="w-4 h-4 text-green-600" />}
           {duration && (
             <span className="text-xs text-gray-500 flex items-center gap-1">
               <Clock className="w-3 h-3" />
@@ -127,11 +127,11 @@ interface NestedStepProps {
 
 function NestedStep({ title, icon, isActive, isCompleted, children, duration }: NestedStepProps) {
   return (
-    <div className="bg-white/30 backdrop-blur-sm rounded-[10px] p-3 border border-white/20">
+    <div className="bg-white/30 backdrop-blur-sm rounded-[10px] p-2">
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-5 h-5 flex items-center justify-center">
+        <div className="w-4 h-4 flex items-center justify-center">
           {isCompleted ? (
-            <CheckCircle className="w-4 h-4 text-green-600" />
+            <CircleCheck className="w-4 h-4 text-green-600" />
           ) : (
             icon
           )}
@@ -154,10 +154,10 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
   if (!isVisible) return null;
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-[10px] p-4 border border-blue-200/50">
+    <div className="bg-gradient-to-b from-blue-50 to-white rounded-[10px] p-2">
       <div className="flex items-center gap-3 mb-3">
-            <div className="w-6 h-6 rounded-[10px] bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-          <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-4 h-4 rounded-[10px] flex items-center justify-center">
+          <Sparkles className="w-4 h-4 text-blue-500" />
         </div>
         <span className="font-medium text-gray-900">Smart planning</span>
       </div>
@@ -166,8 +166,8 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
         Here's a plan I've prepared to create the ad
       </p>
       
-      <div className="space-y-3">
-        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3">
+      <div className="space-y-2">
+        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
           <div className="flex items-center gap-2 mb-1">
             <Brain className="w-4 h-4 text-blue-600" />
             <span className="font-medium text-gray-800 text-sm">Deep research</span>
@@ -177,8 +177,8 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
           </p>
         </div>
         
-        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3">
-          <div className="flex items-center gap-2 mb-1">
+        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
+          <div className="flex items-center gap-1 mb-1">
             <Sparkles className="w-4 h-4 text-purple-600" />
             <span className="font-medium text-gray-800 text-sm">Shape Ad concepts</span>
           </div>
@@ -187,8 +187,8 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
           </p>
         </div>
         
-        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3">
-          <div className="flex items-center gap-2 mb-1">
+        <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
+          <div className="flex items-center gap-1 mb-1">
             <ImageIcon className="w-4 h-4 text-green-600" />
             <span className="font-medium text-gray-800 text-sm">Craft the ads</span>
           </div>
@@ -205,8 +205,8 @@ function ThinkingBubble({ isVisible }: { isVisible: boolean }) {
   if (!isVisible) return null;
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-[10px] max-w-fit">
-      <div className="w-5 h-5 flex items-center justify-center">
+    <div className="flex items-center gap-1 p-2 bg-gray-50 rounded-[10px] max-w-fit">
+      <div className="w-4 h-4 flex items-center justify-center">
         <Heart className="w-4 h-4 text-pink-500 animate-pulse" />
       </div>
       <span className="text-gray-700 text-sm">thinking</span>
@@ -391,7 +391,7 @@ export function ModernAdGenerationFlow({
         <StepBubble
           title="Research agent"
           icon={<Search className="w-4 h-4 text-purple-600" />}
-          gradient="bg-gradient-to-br from-purple-50 to-purple-100/50"
+          gradient="bg-gradient-to-b from-purple-100 to-[#FFFFFF]"
           isActive={frontendStage === 'page_scrape_started' || frontendStage === 'research_started'}
           isCompleted={isCompleted('research_done')}
           isExpanded={expandedSections.has('research')}
@@ -437,7 +437,7 @@ export function ModernAdGenerationFlow({
           
           {/* Main Research Results - Prominent display when completed */}
           {isCompleted('research_done') && (scrapedContent || researchSummary) && (
-            <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-3 space-y-3">
+            <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2 space-y-2">
               <div className="text-xs font-medium text-gray-700 mb-2">Research Summary</div>
               
               {scrapedContent && (
@@ -477,7 +477,7 @@ export function ModernAdGenerationFlow({
         <StepBubble
           title="Creative strategy agent"
           icon={<Sparkles className="w-4 h-4 text-amber-600" />}
-          gradient="bg-gradient-to-br from-amber-50 to-amber-100/50"
+          gradient="bg-gradient-to-b from-amber-50 to-white"
           isActive={frontendStage === 'concepts_started' || frontendStage === 'ideas_started'}
           isCompleted={isCompleted('ideas_done')}
           isExpanded={expandedSections.has('creative')}
@@ -534,7 +534,7 @@ export function ModernAdGenerationFlow({
         <StepBubble
           title="Creating ads"
           icon={<ImageIcon className="w-4 h-4 text-green-600" />}
-          gradient="bg-gradient-to-br from-green-50 to-green-100/50"
+          gradient="bg-gradient-to-b from-green-50 to-white"
           isActive={frontendStage === 'images_started' || frontendStage === 'image_generation_progress'}
           isCompleted={isCompleted('images_done')}
           isExpanded={expandedSections.has('images')}
@@ -562,13 +562,13 @@ export function ModernAdGenerationFlow({
             )}
             
             {generatedImages && generatedImages.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 mt-3">
+              <div className="grid grid-cols-2 gap-2 mt-2">
                 {generatedImages.map((img, index) => (
                   <img
                     key={index}
                     src={img}
                     alt={`Generated ad ${index + 1}`}
-                    className="w-full h-auto rounded-[10px]"
+                    className="w-full h-auto rounded-[5px]"
                   />
                 ))}
               </div>
@@ -579,13 +579,13 @@ export function ModernAdGenerationFlow({
 
       {/* Final Completion */}
       {frontendStage === 'done' && (
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-[10px] p-3">
-          <div className="flex items-center gap-3 mb-2">
-            <CheckCircle className="w-6 h-6 text-emerald-600" />
+            <div className="bg-gradient-to-b from-emerald-50 to-white rounded-[10px] p-2">
+          <div className="flex items-center gap-2 mb-2">
+            <CircleCheck className="w-4 h-4 text-emerald-600" />
             <span className="font-medium text-emerald-800">All ads generated successfully!</span>
           </div>
           {startTime && (
-            <div className="flex items-center gap-2 text-sm text-emerald-700">
+            <div className="flex items-center gap-1 text-sm text-emerald-700">
               <Clock className="w-4 h-4" />
               <span>
                 Completed in {Math.round((new Date().getTime() - startTime.getTime()) / 1000)}s

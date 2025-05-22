@@ -15,6 +15,8 @@ export interface KonvaObject {
   fontFamily?: string
   fill?: string
   draggable?: boolean
+  stroke?: string
+  strokeWidth?: number
 }
 
 type CanvasState = {
