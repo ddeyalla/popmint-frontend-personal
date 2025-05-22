@@ -36,13 +36,13 @@ export default function AdApiTestPage() {
         <div className="bg-gray-50 p-6 rounded-lg">
           <h2 className="text-lg font-semibold mb-2">In the Playground</h2>
           <p className="mb-4 text-gray-700">
-            You can also use ad generation directly in the chat panel with the following command:
+            You can also use ad generation directly in the chat panel by pasting a product URL:
           </p>
           <div className="bg-black text-white p-3 rounded-md font-mono text-sm mb-4 overflow-auto">
-            /ad https://example.com/product --count=4
+            https://example.com/product
           </div>
           <p className="text-gray-600 text-sm">
-            This will analyze the product page and generate up to 4 ad concepts with images.
+            This will analyze the product page and generate ad concepts with images.
             The images will automatically appear on the canvas.
           </p>
         </div>

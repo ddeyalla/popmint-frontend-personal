@@ -8,9 +8,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
-  const jobId = params.jobId;
+  const resolvedParams = await params;
+  const jobId = resolvedParams.jobId;
   
   console.log('🔍 DEBUG - /api/proxy/cancel POST request received for job ID:', jobId);
   

@@ -302,8 +302,7 @@ export default function Home() {
       
       // Check if input contains a product URL - if it does, mark it for ad generation
       const containsUrl = URL_REGEX.test(inputValue);
-      const isAdRequest = inputValue.trim().toLowerCase().startsWith('/ad') || 
-                         (containsUrl && selectedSuggestion?.toLowerCase().includes('ad'));
+      const isAdRequest = containsUrl && selectedSuggestion?.toLowerCase().includes('ad');
       
       // Store all required data in localStorage
       localStorage.setItem("popmint-project-name", projectName);

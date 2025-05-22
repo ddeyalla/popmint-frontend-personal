@@ -1,425 +1,502 @@
-"use client"
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { toast } from "sonner";
+import { XCircle } from "lucide-react"; 
+import { useChatStore, AdGenerationStage } from "@/store/chatStore"; 
+import { AIInputWithSearch } from "@/components/ui/ai-input-with-search";
+import { generateAdsFromProductUrl, getAdGenerationStreamUrl, cancelAdGeneration } from "@/lib/generate-ad";
+import { Button } from "@/components/ui/button";
 
-import { useState, useRef } from "react"
-import { useChatStore } from "@/store/chatStore"
-import { useCanvasStore } from "@/store/canvasStore"
-import { AIInputWithSearch } from "@/components/ui/ai-input-with-search"
-import { generateImageFromPrompt } from '@/lib/generate-image'
-import { generateAdsFromProductUrl, getAdGenerationStreamUrl, cancelAdGeneration } from '@/lib/generate-ad'
-import { useEventSource } from '@/lib/use-event-source'
-import { Button } from "@/components/ui/button"
-import { Loader2, X, Store } from "lucide-react"
-import { cn } from "@/lib/utils"
-
-// Simple function to test if an image URL is valid
-function testImageUrl(url: string) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = (err) => reject(new Error(`Failed to load image: ${url}`));
-    img.src = url;
-  });
+interface ChatInputProps {
+  disabled?: boolean;
 }
 
-export function ChatInput() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
-  const addMessage = useChatStore((state) => state.addMessage)
-  const addImage = useCanvasStore((state) => state.addImage)
-  const objects = useCanvasStore((state) => state.objects)
-  const [isCancelling, setIsCancelling] = useState(false)
-  const [inputValue, setInputValue] = useState("")
-  
-  // Detect when user is typing an ad command
-  const isTypingAdCommand = inputValue.trim().toLowerCase().startsWith('/ad')
-  
-  // SSE connection for ad generation
-  const { connect, disconnect } = useEventSource(undefined, {
-    onEvent: (eventName, data) => handleAdGenerationEvent(eventName, data),
-    autoConnect: false,
-  });
+const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
+  const [inputValue, setInputValue] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
-  // Function to handle input changes to detect ad commands
-  const handleInputChange = (value: string) => {
-    setInputValue(value);
-  };
+  const {
+    addMessage,
+    startAdGeneration,
+    updateAdGeneration,
+    addGeneratedImage,
+    setAdGenerationError,
+    completeAdGeneration,
+  } = useChatStore();
 
-  // Function to proxy an image URL through our proxy API
-  const getProxiedImageUrl = (url: string) => {
-    return `/api/proxy-image?url=${encodeURIComponent(url)}`;
-  };
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Function to check if an image already exists on the canvas
-  const imageExistsOnCanvas = (url: string): boolean => {
-    // Get the base URL without the proxy
-    const isProxied = url.startsWith('/api/proxy-image');
-    const originalUrl = isProxied 
-      ? decodeURIComponent(url.split('?url=')[1] || '')
-      : url;
-    
-    // Check if any object on the canvas has this URL (or its proxied version)
-    return objects.some(obj => {
-      if (!obj.src) return false;
-      
-      const objIsProxied = obj.src.startsWith('/api/proxy-image');
-      const objOriginalUrl = objIsProxied 
-        ? decodeURIComponent(obj.src.split('?url=')[1] || '')
-        : obj.src;
-      
-      return objOriginalUrl === originalUrl || obj.src === url;
-    });
-  };
+  // Clean up SSE connection on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  // Handle event data from SSE stream
-  const handleAdGenerationEvent = (eventName: string, data: any) => {
-    console.log(`[AdGeneration] Received ${eventName} event:`, data);
-    
-    // Handle standard SSE events
-    switch (eventName) {
-      // Handle progress events for each stage
+  // Map backend SSE stages to our AdGenerationStage following Frontend-flow.md
+  const mapBackendStage = (backendStage: string): AdGenerationStage => {
+    switch (backendStage) {
       case 'plan':
+        return 'planning';
       case 'page_scrape_started':
       case 'page_scrape_done':
+        return 'scraping';
       case 'image_extraction_started':
       case 'image_extraction_done':
+        // No UI updates for image extraction per Frontend-flow.md
+        return 'scraping';
       case 'research_started':
       case 'research_done':
+        return 'researching';
       case 'concepts_started':
       case 'concepts_done':
+        return 'concepting';
       case 'ideas_started':
       case 'ideas_done':
+        return 'ideating';
       case 'images_started':
       case 'image_generation_progress':
       case 'images_done':
-        // Handle progress updates
-        if (data.message) {
-          addMessage({ 
-            type: 'agentProgress', 
-            content: data.message,
-            subType: 'ad_concept'
-          });
-        } else {
-          // Use stage name if no message is provided
-          const stageLabel = eventName.replace(/_/g, ' ');
-          addMessage({ 
-            type: 'agentProgress', 
-            content: `${stageLabel} (${data.pct || 0}%)`,
-            subType: 'ad_concept'
-          });
-        }
-        break;
-        
-      // Show generated concepts if available
-      case 'concepts_done':
-        if (data.data?.concepts && data.data.concepts.length > 0) {
-          const conceptNames = data.data.concepts
-            .map((c: any) => c.concept_name)
-            .join(', ');
-            
-          addMessage({
-            type: 'agentProgress',
-            content: `Generated concepts: ${conceptNames}`,
-            subType: 'ad_concept'
-          });
-        }
-        break;
-        
-      // Handle completion with images
+        return 'imaging';
       case 'done':
-        // First add a completion message
-        addMessage({
-          type: 'agentOutput',
-          content: data.message || 'Ad generation complete!',
-          subType: 'ad_concept'
-        });
-        
-        // Then add each image to the canvas with spacing if images are provided
-        if (data.data?.imageUrls && data.data.imageUrls.length > 0) {
-          // Handle external images with proxy
-          const imageUrls = data.data.imageUrls;
-          imageUrls.forEach((imageUrl: string, index: number) => {
-            // Skip if the image already exists on canvas
-            if (imageExistsOnCanvas(imageUrl)) {
-              console.log('[AdGeneration] Image already exists on canvas, skipping:', imageUrl);
-              return;
-            }
-            
-            // Handle external images with proxy
-            const isExternalUrl = imageUrl.startsWith('http') && !imageUrl.startsWith('/api/proxy-image');
-            const proxiedUrl = isExternalUrl 
-              ? getProxiedImageUrl(imageUrl)
-              : imageUrl;
-            
-            // Add to canvas with proper spacing - offset each image horizontally
-            setTimeout(() => {
-              addImage(proxiedUrl, 20 + (index * 420), 20);
-            }, index * 100); // Staggered adding for better performance
-          });
-        }
-        
-        // Reset state
-        setCurrentJobId(null);
-        setIsLoading(false);
-        break;
-        
-      // Handle errors
+        return 'completed';
       case 'error':
-        addMessage({
-          type: 'agentOutput',
-          content: `Error: ${data.message || 'Unknown error'} ${data.errorCode ? `(${data.errorCode})` : ''}`,
-          subType: 'ad_concept'
-        });
-        setCurrentJobId(null);
-        setIsLoading(false);
-        break;
-        
-      // Handle cancellation
-      case 'cancelled':
-        addMessage({
-          type: 'agentOutput',
-          content: 'Ad generation was cancelled',
-          subType: 'ad_concept'
-        });
-        setCurrentJobId(null);
-        setIsLoading(false);
-        break;
-        
-      // Handle heartbeats (just log, don't display)
-      case 'heartbeat':
-        console.log('[AdGeneration] Heartbeat received:', data);
-        break;
-        
-      // Handle generic messages or events not specified above
+        return 'error';
       default:
-        if (data.message) {
-          addMessage({
-            type: 'agentProgress',
-            content: data.message,
-            subType: 'ad_concept'
-          });
-        }
-        break;
+        return 'thinking';
     }
   };
 
-  // Parse ad command for product URL and image count
-  const parseAdCommand = (command: string): { productUrl: string, imageCount: number } => {
-    // Remove the /ad prefix and trim whitespace
-    const commandText = command.replace(/^\/ad\s+/i, '').trim();
-    
-    // Look for image count flag at the end of the command (e.g., --count=4 or -n=4)
-    const countMatch = commandText.match(/(--count=|--n=|-n=)(\d+)$/);
-    
-    let imageCount = 4; // Default value
-    let productUrl = commandText;
-    
-    if (countMatch) {
-      // Extract count and remove the flag from the URL
-      imageCount = parseInt(countMatch[2], 10);
-      productUrl = commandText.replace(countMatch[0], '').trim();
-    }
-    
-    return { productUrl, imageCount };
-  };
-
-  // Handle ad generation command
-  const handleAdGeneration = async (command: string) => {
+  // Handle SSE events following Frontend-flow.md progression
+  const handleSSEEvent = useCallback((eventData: any) => {
     try {
-      const { productUrl: parsedUrl, imageCount } = parseAdCommand(command);
+      const { jobId, stage, message, data, pct = 0, errorCode } = eventData || {};
       
-      // Use the parsed URL as a mutable variable
-      let productUrl = parsedUrl;
-      
-      if (!productUrl) {
-        addMessage({ 
-          type: 'agentOutput',
-          content: 'Error: Please provide a product URL after /ad command'
-        });
-        setIsLoading(false);
+      if (!jobId) {
+        console.warn('🔥 SSE Event missing jobId:', eventData);
         return;
       }
       
-      // Check if URL is reasonably valid
-      if (!productUrl.match(/^https?:\/\/.+\..+/)) {
-        // Try to fix it if it's just missing the protocol
-        if (!productUrl.startsWith('http')) {
-          productUrl = 'https://' + productUrl;
-        } else {
-          addMessage({ 
-            type: 'agentOutput',
-            content: 'Error: Please provide a valid product URL (e.g., https://example.com/product)'
+      if (!stage) {
+        console.warn('🔥 SSE Event missing stage:', eventData);
+        return;
+      }
+      
+      // TypeScript type guard - jobId is guaranteed to be string after the null check above
+      const eventJobId = jobId as string;
+      const mappedStage = mapBackendStage(stage);
+
+      console.log('🔥 SSE Event:', { jobId: eventJobId, stage, mappedStage, message, pct, data });
+
+      switch (stage) {
+        case 'error':
+          setAdGenerationError(eventJobId, message || 'Unknown error occurred');
+          setIsProcessing(false);
+          disconnectSSE();
+          break;
+
+        case 'done':
+          completeAdGeneration(eventJobId, data?.imageUrls || []);
+          setIsProcessing(false);
+          disconnectSSE();
+          break;
+
+        case 'plan':
+          updateAdGeneration(eventJobId, 'planning', {
+            progress: pct,
+            message: message || 'Smart plan created',
           });
-          setIsLoading(false);
+          break;
+
+        case 'page_scrape_started':
+          updateAdGeneration(eventJobId, 'scraping', {
+            progress: pct,
+            message: 'Checking product details...',
+          });
+          break;
+
+        case 'page_scrape_done':
+          updateAdGeneration(eventJobId, 'scraping', {
+            progress: pct,
+            message: 'Product details extracted',
+            scrapedContent: data?.scraped_content_summary,
+          });
+          break;
+
+        case 'research_started':
+          updateAdGeneration(eventJobId, 'researching', {
+            progress: pct,
+            message: 'Researching...',
+          });
+          break;
+
+        case 'research_done':
+          updateAdGeneration(eventJobId, 'researching', {
+            progress: pct,
+            message: 'Research completed',
+            researchSummary: data?.summary,
+          });
+          break;
+
+        case 'concepts_started':
+          updateAdGeneration(eventJobId, 'concepting', {
+            progress: pct,
+            message: 'Generating ad concepts...',
+          });
+          break;
+
+        case 'concepts_done':
+          updateAdGeneration(eventJobId, 'concepting', {
+            progress: pct,
+            message: '✓ Ad concepts generated. Moving to next step...',
+          });
+          break;
+
+        case 'ideas_started':
+          updateAdGeneration(eventJobId, 'ideating', {
+            progress: pct,
+            message: 'Generating ad copy ideas...',
+          });
+          break;
+
+        case 'ideas_done':
+          updateAdGeneration(eventJobId, 'ideating', {
+            progress: pct,
+            message: 'Ad ideas generated',
+            adIdeas: data?.ideas,
+          });
+          break;
+
+        case 'images_started':
+          updateAdGeneration(eventJobId, 'imaging', {
+            progress: pct,
+            message: message || 'Generating ads...',
+          });
+          break;
+
+        case 'image_generation_progress':
+          if (data?.image_url) {
+            addGeneratedImage(eventJobId, data.image_url);
+          }
+          updateAdGeneration(eventJobId, 'imaging', {
+            progress: pct,
+            message: data?.current_image && data?.total_images 
+              ? `Generating ad image ${data.current_image} of ${data.total_images}...`
+              : 'Generating ads...',
+          });
+          break;
+
+        case 'images_done':
+          updateAdGeneration(eventJobId, 'imaging', {
+            progress: pct,
+            message: '✓ Ads generated.',
+            generatedImages: data?.generated_image_urls,
+          });
+          break;
+
+        // Skip image extraction events (no UI updates per Frontend-flow.md)
+        case 'image_extraction_started':
+        case 'image_extraction_done':
+          // No UI updates for these stages
+          break;
+
+        // Heartbeat events - no UI updates needed
+        case 'heartbeat':
+          console.log('💓 Heartbeat received');
+          break;
+
+        default:
+          updateAdGeneration(eventJobId, mappedStage, {
+            progress: pct,
+            message: message || `Processing ${stage}...`,
+          });
+          break;
+      }
+    } catch (error) {
+      console.error('🔥 Error handling SSE event:', error, 'Event data:', eventData);
+      // Don't break the connection for individual event errors
+    }
+  }, [updateAdGeneration, addGeneratedImage, setAdGenerationError, completeAdGeneration, setIsProcessing]);
+
+  // Connect to SSE stream with retry logic
+  const connectSSE = useCallback((jobId: string, retryCount = 0) => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    const streamUrl = getAdGenerationStreamUrl(jobId);
+    console.log('🔥 Connecting to SSE:', streamUrl, retryCount > 0 ? `(retry ${retryCount})` : '');
+
+    let eventSource: EventSource;
+    try {
+      eventSource = new EventSource(streamUrl);
+      eventSourceRef.current = eventSource;
+    } catch (error) {
+      console.error('🔥 Failed to create EventSource:', error);
+      if (currentJobId && isProcessing) {
+        setAdGenerationError(currentJobId, 'Failed to connect to generation stream');
+      }
+      setIsProcessing(false);
+      return;
+    }
+
+    eventSource.onopen = () => {
+      console.log('🔥 SSE Connected');
+      
+      // Set a timeout to detect hanging connections (30 seconds without any events)
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+      connectionTimeoutRef.current = setTimeout(() => {
+        console.warn('🔥 SSE Connection timeout - no events received for 30 seconds');
+        if (isProcessing) {
+          eventSource.close();
+          // Try to reconnect if we haven't exceeded retry limit
+          if (retryCount < 3) {
+            console.log('🔥 Attempting to reconnect due to timeout');
+            connectSSE(jobId, retryCount + 1);
+          } else {
+            setAdGenerationError(jobId, 'Connection timeout. Please try again.');
+            setIsProcessing(false);
+            disconnectSSE();
+          }
+        }
+      }, 30000); // 30 second timeout
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        // Reset connection timeout on any message
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = setTimeout(() => {
+            console.warn('🔥 SSE Connection timeout - no events received for 30 seconds');
+            if (isProcessing) {
+              eventSource.close();
+              if (retryCount < 3) {
+                console.log('🔥 Attempting to reconnect due to timeout');
+                connectSSE(jobId, retryCount + 1);
+              } else {
+                setAdGenerationError(jobId, 'Connection timeout. Please try again.');
+                setIsProcessing(false);
+                disconnectSSE();
+              }
+            }
+          }, 30000);
+        }
+        
+        // Check if event.data exists and is not undefined/null
+        if (!event.data || event.data === 'undefined' || event.data === 'null') {
+          console.warn('🔥 SSE: Received empty or undefined data');
           return;
         }
+        
+        const data = JSON.parse(event.data);
+        handleSSEEvent(data);
+      } catch (error) {
+        console.error('🔥 SSE Parse Error:', error, 'Raw data:', event.data);
+        // Don't treat parse errors as fatal - continue listening
       }
+    };
+
+    eventSource.onerror = (error: Event) => {
+      console.error('🔥 SSE Error:', {
+        error,
+        readyState: eventSource.readyState,
+        url: streamUrl,
+        jobId: jobId,
+        retryCount
+      });
       
-      // First check API health
-      console.log('[AdGeneration] Checking ad generation API health...');
+      // Only handle error if we're still processing
+      if (isProcessing) {
+        // Try to reconnect on connection errors (up to 3 times)
+        if (retryCount < 3 && eventSource.readyState === EventSource.CLOSED) {
+          console.log(`🔥 Attempting to reconnect SSE (attempt ${retryCount + 1}/3)`);
+          setTimeout(() => {
+            if (isProcessing) {
+              connectSSE(jobId, retryCount + 1);
+            }
+          }, Math.pow(2, retryCount) * 1000); // Exponential backoff: 1s, 2s, 4s
+          return;
+        }
+        
+        setAdGenerationError(jobId, 'Connection lost. Please try again.');
+      }
+      setIsProcessing(false);
+      disconnectSSE();
+    };
+
+    // Handle named events (backend sends events with specific names)
+    const eventTypes = [
+      'plan', 'page_scrape_started', 'page_scrape_done',
+      'image_extraction_started', 'image_extraction_done',
+      'research_started', 'research_done',
+      'concepts_started', 'concepts_done',
+      'ideas_started', 'ideas_done',
+      'images_started', 'image_generation_progress', 'images_done',
+      'done', 'error', 'heartbeat'
+    ];
+
+    eventTypes.forEach(eventType => {
+      eventSource.addEventListener(eventType, (event: any) => {
+        try {
+          // Reset connection timeout on any named event
+          if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current);
+            connectionTimeoutRef.current = setTimeout(() => {
+              console.warn('🔥 SSE Connection timeout - no events received for 30 seconds');
+              if (isProcessing) {
+                eventSource.close();
+                if (retryCount < 3) {
+                  console.log('🔥 Attempting to reconnect due to timeout');
+                  connectSSE(jobId, retryCount + 1);
+                } else {
+                  setAdGenerationError(jobId, 'Connection timeout. Please try again.');
+                  setIsProcessing(false);
+                  disconnectSSE();
+                }
+              }
+            }, 30000);
+          }
+          
+          // Check if event.data exists and is not undefined/null
+          if (!event.data || event.data === 'undefined' || event.data === 'null') {
+            console.warn(`🔥 SSE ${eventType}: Received empty or undefined data`);
+            return;
+          }
+          
+          const data = JSON.parse(event.data);
+          handleSSEEvent({ ...data, stage: eventType });
+        } catch (error) {
+          console.error(`🔥 SSE ${eventType} Parse Error:`, error, 'Raw data:', event.data);
+          // Don't treat parse errors as fatal - continue listening
+        }
+      });
+    });
+  }, [handleSSEEvent, setAdGenerationError]);
+
+  // Disconnect SSE
+  const disconnectSSE = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+    setCurrentJobId(null);
+  }, []);
+
+  // Handle form submission
+  const handleSubmit = async (value: string) => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue || isProcessing) return;
+
+    // Check if message contains a URL for ad generation
+    const urlMatch = trimmedValue.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
+    
+    if (urlMatch && urlMatch.length > 0) {
+      // Handle ad generation
+      let productUrl = urlMatch[0];
+      if (!productUrl.startsWith('http')) {
+        productUrl = 'https://' + productUrl;
+      }
+
+      setIsProcessing(true);
+      
       try {
-        const healthResponse = await fetch('/api/proxy/healthz');
-        if (!healthResponse.ok) {
-          throw new Error(`Health check failed with status: ${healthResponse.status}`);
+        // Start the backend job first to get the real job ID
+        const backendJobId = await generateAdsFromProductUrl(productUrl);
+        console.log('🔥 Backend Job Started:', backendJobId);
+        
+        if (!backendJobId) {
+          throw new Error('No job ID returned from backend');
         }
-        const responseText = await healthResponse.text();
-        if (responseText !== 'pong') {
-          throw new Error('Invalid health check response');
-        }
-        console.log('[AdGeneration] Ad generation API is healthy');
-      } catch (healthError: any) {
-        console.error('[AdGeneration] API health check failed:', healthError);
-        addMessage({
-          type: 'agentOutput',
-          content: `Error: Ad generation service is unavailable. Please try again later.`,
-          subType: 'ad_concept'
-        });
-        setIsLoading(false);
-        return;
+        
+        setCurrentJobId(backendJobId);
+        
+        // Start ad generation in the store with "thinking" stage
+        startAdGeneration(backendJobId, trimmedValue);
+        
+        // Connect to SSE
+        console.log('🔥 Connecting to SSE with job ID:', backendJobId);
+        connectSSE(backendJobId);
+        
+      } catch (error: any) {
+        console.error('🔥 Ad Generation Error:', error);
+        toast.error(`Failed to start ad generation: ${error.message}`);
+        setIsProcessing(false);
+        setCurrentJobId(null);
       }
-      
-      // Add initial progress message
-      addMessage({ 
-        type: 'agentProgress', 
-        content: `Starting ad generation for product: ${productUrl}`,
-        subType: 'ad_concept' 
+    } else {
+      // Handle regular chat messages
+      addMessage({
+        role: 'user',
+        type: 'text',
+        content: trimmedValue,
       });
-      
-      // Start the generation job
-      const jobId = await generateAdsFromProductUrl(productUrl, imageCount);
-      console.log(`[AdGeneration] Job started with ID: ${jobId}`);
-      setCurrentJobId(jobId);
-      
-      // Add a message about the number of images being generated
-      addMessage({ 
-        type: 'agentProgress', 
-        content: `Ad generation started. Will create ${imageCount} image${imageCount !== 1 ? 's' : ''}.`,
-        subType: 'ad_concept' 
-      });
-      
-      // Get the stream URL
-      const streamUrl = getAdGenerationStreamUrl(jobId);
-      console.log(`[AdGeneration] Connecting to stream URL: ${streamUrl}`);
-      
-      // Connect to the stream and start getting updates
-      connect(streamUrl);
-      
-    } catch (error: any) {
-      console.error('[AdGeneration] Error:', error);
-      addMessage({ 
-        type: 'agentOutput', 
-        content: `Error: ${error.message || 'Failed to start ad generation'}`,
-        subType: 'ad_concept'
-      });
-      setIsLoading(false);
     }
+
+    setInputValue("");
   };
 
-  // Handle cancelling a generation job
+  // Handle cancellation
   const handleCancel = async () => {
-    if (!currentJobId || isCancelling) return;
-    
+    if (!currentJobId) {
+      console.warn('🔥 Cancel requested but no current job ID');
+      setIsProcessing(false);
+      disconnectSSE();
+      return;
+    }
+
     try {
-      setIsCancelling(true);
-      addMessage({
-        type: 'agentProgress',
-        content: 'Cancelling ad generation...'
-      });
-      
       await cancelAdGeneration(currentJobId);
-      
-      // We don't need to show a cancellation message here
-      // as the SSE stream should send a 'cancelled' event
-      
-      // Disconnect from the SSE stream
-      disconnect();
+      setAdGenerationError(currentJobId, 'Generation cancelled by user');
+      toast.success('Ad generation cancelled');
     } catch (error: any) {
-      console.error('[AdGeneration] Error cancelling job:', error);
-      addMessage({
-        type: 'agentOutput',
-        content: `Error cancelling job: ${error.message || 'Unknown error'}`
-      });
+      console.error('🔥 Cancel error:', error);
+      toast.error(`Failed to cancel: ${error.message}`);
     } finally {
-      setIsCancelling(false);
-      setIsLoading(false);
-      setCurrentJobId(null);
+      setIsProcessing(false);
+      disconnectSSE();
     }
   };
 
-  const handleSubmit = async (value: string, withSearch: boolean) => {
-    if (!value.trim() || isLoading) return;
-    
-    setIsLoading(true);
-    
-    try {
-      // Add user message
-      addMessage({ type: "userInput", content: value });
-      console.log('[ChatInput] User submitted prompt:', value);
-      
-      // Detect /ad command for ad generation
-      const isAdRequest = value.trim().toLowerCase().startsWith('/ad');
-      if (isAdRequest) {
-        await handleAdGeneration(value);
-        return;
-      }
-      
-      // For any other input, just show a simple response
-      addMessage({ 
-        type: 'agentOutput', 
-        content: 'To generate ads, use the /ad command followed by a product URL.'
-      });
-      
-    } catch (error: any) {
-      console.error('[ChatInput] Error handling input:', error);
-      
-      addMessage({
-        type: 'agentOutput',
-        content: `Error: ${error.message || 'An unexpected error occurred'}`
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const disabled = propDisabled || isProcessing;
 
   return (
-    <div className="relative">
-      {(isLoading && currentJobId) && (
-        <div className="absolute right-12 top-2 z-10">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
-            disabled={isCancelling}
-            onClick={handleCancel}
-          >
-            {isCancelling ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <X className="h-4 w-4 mr-1" />
-            )}
-            {isCancelling ? "Cancelling..." : "Cancel"}
-          </Button>
-        </div>
-      )}
-      {isTypingAdCommand && (
-        <div className="absolute left-12 top-2 z-10">
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 text-emerald-700 rounded-md text-xs border border-emerald-200">
-            <Store className="h-3 w-3" />
-            <span>Ad Generator Active</span>
-          </div>
-        </div>
+    <div className="relative w-full px-4 pb-2 pt-2 md:pt-0 lg:pt-0 xl:pt-0">
+      {isProcessing && (
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleCancel}
+          className="absolute right-4 top-[-36px] z-10 bg-background hover:bg-destructive/10 border-destructive/50 text-destructive shadow-sm"
+        >
+          <XCircle className="mr-2 h-4 w-4" /> Cancel Generation
+        </Button>
       )}
       <AIInputWithSearch
-        placeholder={isTypingAdCommand 
-          ? "Enter product URL... (e.g., https://example.com/product --count=4)" 
-          : "Ask Popmint or type /ad to generate ads..."}
+        onChange={setInputValue}
         onSubmit={handleSubmit}
-        onChange={handleInputChange}
-        disabled={isLoading}
-        className={cn(
-          "shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c] bg-white rounded-[10px]",
-          isTypingAdCommand && "border-l-4 border-l-emerald-400"
-        )}
+        placeholder="Paste a product URL to generate ads (e.g., https://example.com/product-page) or type a message..."
+        disabled={disabled}
+        minHeight={52}
+        onFileSelect={(file) => {
+          toast.info(`File selected: ${file.name}. File processing not yet supported.`);
+        }}
       />
     </div>
   );
-}
+};
+
+export { ChatInput };

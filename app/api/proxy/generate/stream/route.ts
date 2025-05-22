@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // URL of the backend service
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 export async function GET(req: NextRequest) {
   console.log('🔍 DEBUG - /api/proxy/generate/stream GET request received');
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     }
     
     console.log('🔍 DEBUG - Connecting to stream for job ID:', jobId);
+    console.log('🔍 DEBUG - Backend URL:', BACKEND_URL);
     
     // Get Last-Event-ID for reconnection if provided
     const lastEventId = req.headers.get('Last-Event-ID');
