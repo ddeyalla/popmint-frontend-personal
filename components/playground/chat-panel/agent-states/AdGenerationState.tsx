@@ -136,7 +136,7 @@ export function AdGenerationState({
   if (currentStage === "done") {
     const duration = startTime ? calculateDuration(startTime, new Date()) : "";
     return (
-      <div className="flex flex-col gap-2 w-full p-4 rounded-[10px] bg-green-50 border border-green-200">
+      <div className="flex flex-col gap-2 w-full p-4 rounded-[10px] bg-green-50 border border-green-200 overflow-hidden">
         <div className="flex items-center gap-2">
           <CheckCircle className="h-5 w-5 text-green-500" />
           <span className="font-normal text-green-800">All ads generated successfully!</span>
@@ -214,8 +214,8 @@ export function AdGenerationState({
           {currentStage === "research_started" ? (
             <StageLoader
               icon={Search}
-              title="Researching"
-              message="Gathering market insights..."
+              title="Researching product"
+              message="Gathering insights..."
               bgColor="bg-indigo-50"
               borderColor="border-indigo-200"
               textColor="text-indigo-800"
@@ -225,8 +225,8 @@ export function AdGenerationState({
             <CompletedStage
               icon={Search}
               title="Research completed"
-              bgColor="bg-indigo-50"
-              borderColor="border-indigo-200"
+              bgColor="bg-transparent"
+              borderColor="border-transparent"
               textColor="text-indigo-800"
               iconColor="text-indigo-500"
             >

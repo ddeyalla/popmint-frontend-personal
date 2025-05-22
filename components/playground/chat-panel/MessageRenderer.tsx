@@ -54,27 +54,16 @@ export function MessageRenderer({ message }: MessageRendererProps) {
               adIdeas={message.adData?.adIdeas}
               generatedImages={message.adData?.generatedImages}
               error={message.adData?.error}
+              stepTimings={message.adData?.stepTimings}
             />
           </div>
         </div>
       );
 
     case 'ad_step_complete':
-      const stepTiming = message.adData?.stepTimings?.[message.adData.stepTimings.length - 1];
-      const duration = stepTiming?.duration ? `${(stepTiming.duration / 1000).toFixed(1)}s` : '';
-      
-      return (
-        <div className="flex w-full justify-start">
-          <div className="flex items-center gap-2 p-2">
-            <span className="text-green-700">{message.content}</span>
-            {duration && (
-              <span className="text-green-500 text-sm">
-                {duration}
-              </span>
-            )}
-          </div>
-        </div>
-      );
+      // Don't render individual step completion messages anymore 
+      // as they are now integrated into the main flow
+      return null;
 
     case 'agent_progress':
       return (

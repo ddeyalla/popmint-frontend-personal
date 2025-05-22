@@ -172,6 +172,8 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
         y={object.y || 0}
         width={object.width || 100}
         height={object.height || 100}
+        stroke={object.stroke}
+        strokeWidth={object.strokeWidth}
         draggable={!isMultiSelected && (object.draggable !== false)}
         onClick={onSelect}
         onTap={onSelect}

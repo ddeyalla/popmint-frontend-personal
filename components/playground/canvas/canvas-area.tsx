@@ -210,8 +210,7 @@ export function CanvasArea() {
   useEffect(() => {
     const hasChatImages = messages.some(
       (msg) =>
-        msg.type === "agentOutput" &&
-        msg.subType === "image_generated" &&
+        msg.type === "agent_output" &&
         Array.isArray(msg.imageUrls) &&
         msg.imageUrls.length > 0
     );

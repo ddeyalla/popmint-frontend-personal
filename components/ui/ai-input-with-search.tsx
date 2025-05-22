@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Globe, ImagePlus} from "lucide-react";
+import { ArrowUp, CirclePause, Globe, ImagePlus, XCircle} from "lucide-react";
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,6 +17,9 @@ interface AIInputWithSearchProps {
   onFileSelect?: (file: File) => void;
   className?: string;
   disabled?: boolean;
+  isProcessing?: boolean;
+  onCancel?: () => void;
+  showCancelModal?: () => Promise<boolean>;
 }
 
 export function AIInputWithSearch({
@@ -28,7 +31,10 @@ export function AIInputWithSearch({
   onChange,
   onFileSelect,
   className,
-  disabled = false
+  disabled = false,
+  isProcessing = false,
+  onCancel,
+  showCancelModal
 }: AIInputWithSearchProps) {
   const [value, setValue] = useState("");
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -37,7 +43,21 @@ export function AIInputWithSearch({
   });
   const [showSearch, setShowSearch] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // Handle cancellation if processing
+    if (isProcessing) {
+      if (showCancelModal && onCancel) {
+        const shouldCancel = await showCancelModal();
+        if (shouldCancel) {
+          onCancel();
+        }
+      } else if (onCancel) {
+        onCancel();
+      }
+      return;
+    }
+
+    // Handle normal submission
     if (value.trim()) {
       onSubmit?.(value, showSearch);
       setValue("");
@@ -53,7 +73,7 @@ export function AIInputWithSearch({
   };
 
   return (
-    <div className={cn("w-full p-1", className)}>
+    <div className={cn("w-full p-1 ", className)}>
       <div className="relative max-w-xl w-full mx-auto">
         <div className="relative flex flex-col">
           <div
@@ -64,11 +84,11 @@ export function AIInputWithSearch({
               id={id}
               value={value}
               placeholder={placeholder}
-              disabled={disabled}
-              className="w-full rounded-xl rounded-b-none px-2 py-2 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none focus-visible:ring-0 leading-[1.2]"
+              disabled={disabled || isProcessing}
+              className="w-full p-1 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none leading-[1.2]"
               ref={textareaRef}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !disabled) {
+                              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !disabled && !isProcessing) {
                   e.preventDefault();
                   handleSubmit();
                 }
@@ -81,10 +101,10 @@ export function AIInputWithSearch({
             />
           </div>
 
-          <div className="h-4 dark:bg-white/5 rounded-10px">
+          <div className="h-4 dark:bg-white/5">
             <div className="absolute left-2 bottom-2 flex items-center gap-2">
               <label className={cn(
-                "cursor-pointer rounded-lg p-2 bg-black/5 dark:bg-white/5",
+                "cursor-pointer p-2 bg-black/5 dark:bg-white/5",
                 disabled && "opacity-50 cursor-not-allowed"
               )}>
                 <input 
@@ -156,20 +176,26 @@ export function AIInputWithSearch({
                 </AnimatePresence>
               </button>
             </div>
-            <div className="absolute rounded-full right-2 bg-blue-400 bottom-2">
+            <div className="absolute rounded-full right-2 bottom-2">
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => !disabled && handleSubmit()}
                 className={cn(
-                  "rounded-lg bg-blue-900 p-2 transition-colors",
-                  value
-                    ? "bg-sky-500/15 text-sky-500"
-                    : "bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
+                  "rounded-lg p-2 transition-colors",
+                  isProcessing
+                    ? "bg-slate-900 hover:bg-red-600 text-white"
+                    : value.trim() || isProcessing
+                      ? "bg-blue-500 hover:bg-blue-600 text-white"
+                      : "bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
                   disabled && "opacity-50 cursor-not-allowed"
                 )}
               >
-                <ArrowUp strokeWidth={3} color="white" className="w-4 h-4" />
+                {isProcessing ? (
+                  <CirclePause className="w-4 h-4" />
+                ) : (
+                  <ArrowUp strokeWidth={3} className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
