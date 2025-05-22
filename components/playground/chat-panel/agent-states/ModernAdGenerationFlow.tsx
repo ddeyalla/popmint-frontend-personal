@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { Stage } from "@/lib/agent-state-mapper";
 import { cn } from "@/lib/utils";
+import { group } from "console";
+import { hover } from "framer-motion";
 
 interface StepTiming {
   stage: string;
@@ -562,13 +564,22 @@ export function ModernAdGenerationFlow({
             )}
             
             {generatedImages && generatedImages.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="group relative h-48 mt-2">
                 {generatedImages.map((img, index) => (
                   <img
                     key={index}
                     src={img}
                     alt={`Generated ad ${index + 1}`}
-                    className="w-full h-auto rounded-[5px]"
+                    className={cn(
+                      "absolute w-32 h-40 object-cover rounded-[12px] shadow-lg transition-transform duration-200 cursor-pointer",
+                      index === 0 && "top-0 left-0 z-30 group-hover:translate-x-0 group-hover:rotate-0 -rotate-15",
+                      index === 1 && "top-0 left-8 z-20 group-hover:translate-x-8 group-hover:rotate-0 -rotate-5",
+                      index === 2 && "top-0 left-16 z-10 group-hover:translate-x-10 group-hover:rotate-0 rotate-0",
+                      index === 3 && "top-0 left-24 z-0 group-hover:translate-x-15 group-hover:rotate-0 rotate-10"
+                    )}
+                    style={{
+                      zIndex: generatedImages.length - index
+                    }}
                   />
                 ))}
               </div>
