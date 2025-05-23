@@ -5,6 +5,8 @@ import { ChatMessage, AdGenerationStage } from "@/store/chatStore";
 import { AdGenerationFlowBlock } from "./blocks/AdGenerationFlowBlock";
 import { MessageBubble } from "./message-bubble";
 import { Stage } from "@/lib/agent-state-mapper";
+import { AgentBubble, TemporaryStatusBubble } from "./agent-bubbles";
+import { AlertTriangle } from "lucide-react";
 
 interface MessageRendererProps {
   message: ChatMessage;
@@ -42,6 +44,14 @@ export function MessageRenderer({ message }: MessageRendererProps) {
       // Use the MessageBubble component for simple text messages
       return <MessageBubble message={message} />;
 
+    case 'agent_bubble':
+      // Use the new AgentBubble component for specialized agent bubbles
+      return <AgentBubble message={message} />;
+
+    case 'temporary_status':
+      // Use the TemporaryStatusBubble for temporary status messages
+      return <TemporaryStatusBubble message={message} />;
+
     case 'ad_generation':
       return (
         <div className="flex w-full justify-start overflow-x-visible">
@@ -61,7 +71,7 @@ export function MessageRenderer({ message }: MessageRendererProps) {
       );
 
     case 'ad_step_complete':
-      // Don't render individual step completion messages anymore 
+      // Don't render individual step completion messages anymore
       // as they are now integrated into the main flow
       return null;
 
@@ -69,9 +79,9 @@ export function MessageRenderer({ message }: MessageRendererProps) {
       return (
         <div className="flex w-full justify-start overflow-x-visible">
           <div className="flex items-center gap-2 p-2 max-w-[85%] break-words">
-            <img 
-              src="/popmint_logo.svg" 
-              alt="PopMint" 
+            <img
+              src="/popmint_logo.svg"
+              alt="PopMint"
               className="w-4 h-4 animate-spin"
             />
             <span className="text-gray-700">{message.content}</span>
@@ -89,7 +99,7 @@ export function MessageRenderer({ message }: MessageRendererProps) {
             {message.imageUrls && message.imageUrls.length > 0 && (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {message.imageUrls.map((url, index) => (
-                  <img 
+                  <img
                     key={index}
                     src={url}
                     alt={`Generated image ${index + 1}`}
@@ -107,7 +117,7 @@ export function MessageRenderer({ message }: MessageRendererProps) {
         <div className="flex w-full justify-start overflow-x-visible">
           <div className="max-w-[85%] p-3 rounded-lg bg-red-50 text-red-700 border border-red-200 break-words">
             <div className="flex items-center gap-2">
-              <span className="text-red-500">⚠️</span>
+              <AlertTriangle className="w-4 h-4 text-red-500" />
               <span className="break-words">{message.content}</span>
             </div>
           </div>

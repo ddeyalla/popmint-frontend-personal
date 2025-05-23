@@ -7,6 +7,8 @@ import { useChatStore } from "@/store/chatStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { CollapsedOverlay } from "@/components/playground/collapsed-overlay";
 import { cn } from "@/lib/utils";
+import { generateAdsFromProductUrl } from "@/lib/generate-ad";
+import { useProductPageSSE } from "@/components/playground/chat-panel/sse/product-page-handler";
 
 interface ClientSidePlaygroundProps {
   sessionId: string;
@@ -19,9 +21,12 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
   const [isUILoading, setIsUILoading] = useState(true);
   const canvasAreaWrapperRef = useRef<HTMLDivElement>(null);
 
+  // Use our new SSE handler
+  const { connectToSSE, disconnectSSE } = useProductPageSSE();
+
   // Precompute styles only when isSidebarCollapsed changes
   const canvasStyles = useMemo(() => {
-    return { 
+    return {
       willChange: "transform",
       transform: isSidebarCollapsed ? 'translateX(0)' : 'translateX(372px)',
       width: isSidebarCollapsed ? '100%' : 'calc(100% - 372px)'
@@ -30,7 +35,7 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
 
   const containerClassName = useMemo(() => {
     return cn(
-      "flex h-screen w-screen transition-all duration-300 ease-in-out", 
+      "flex h-screen w-screen transition-all duration-300 ease-in-out",
       isSidebarCollapsed ? "p-2" : "p-2"
     );
   }, [isSidebarCollapsed]);
@@ -50,6 +55,44 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
     }
   }, [isSidebarCollapsed]);
 
+  // Handle ad generation
+  const handleAdGeneration = async (content: string, productUrl: string) => {
+    try {
+      console.log("[Playground] Starting ad generation for URL:", productUrl);
+
+      // Generate a client-side job ID for tracking
+      const clientJobId = `ad_${Date.now()}`;
+
+      // Start ad generation in the store
+      startAdGeneration(clientJobId, content);
+
+      // Add a temporary message
+      addMessage({
+        role: 'assistant',
+        type: 'temporary_status',
+        content: "Got it! Let me take a look at that for you...",
+        icon: 'Loader2',
+        isTemporary: true
+      });
+
+      // Call the API to start ad generation
+      const serverJobId = await generateAdsFromProductUrl(clientJobId, productUrl);
+
+      // Connect to SSE stream using the server-generated job ID
+      connectToSSE(serverJobId);
+
+    } catch (error) {
+      console.error("[Playground] Error generating ads:", error);
+
+      // Add error message
+      addMessage({
+        role: 'assistant',
+        type: 'error',
+        content: 'Failed to start ad generation. Please try again.',
+      });
+    }
+  };
+
   // Initialize playground and handle initial messages
   useEffect(() => {
     if (isInitialized.current) return;
@@ -66,21 +109,21 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
         if (initialMessageJson) {
           try {
             const initialMessage = JSON.parse(initialMessageJson);
-            
+
             // Add the user's message to the chat
             addMessage({
               type: "text",
-              role: "user", 
+              role: "user",
               content: initialMessage.content,
               ...(initialMessage.imageUrls ? { imageUrls: initialMessage.imageUrls } : {})
             });
-            
+
             // Clear the stored message
             localStorage.removeItem("popmint-initial-message");
-            
+
             // UI is ready now
             setIsUILoading(false);
-            
+
             // Handle ad generation if flag is set
             if (shouldGenerateAd && initialMessage.content) {
               const urlMatch = initialMessage.content.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
@@ -89,14 +132,9 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
                 if (!productUrl.startsWith('http')) {
                   productUrl = 'https://' + productUrl;
                 }
-                
-                // Start ad generation in the store - this will be picked up by the chat input component
-                startAdGeneration(`ad_${Date.now()}`, initialMessage.content);
-                
-                // Trigger the ad generation by dispatching a custom event that the chat input will listen to
-                window.dispatchEvent(new CustomEvent('trigger-ad-generation', { 
-                  detail: { content: initialMessage.content, productUrl } 
-                }));
+
+                // Handle ad generation directly
+                handleAdGeneration(initialMessage.content, productUrl);
               }
             }
           } catch (error) {
@@ -117,7 +155,12 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
     };
 
     initializePlayground();
-  }, [addMessage, sessionId, startAdGeneration]);
+
+    // Clean up SSE connection on unmount
+    return () => {
+      disconnectSSE();
+    };
+  }, [addMessage, sessionId, startAdGeneration, connectToSSE, disconnectSSE]);
 
   if (isUILoading) {
     return (
@@ -143,7 +186,7 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
       </div>
 
       {/* Main canvas area */}
-      <div 
+      <div
         ref={canvasAreaWrapperRef}
         className="relative min-w-0 h-full z-30 transition-transform duration-300 ease-in-out"
         style={canvasStyles}
@@ -153,4 +196,4 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
       </div>
     </div>
   );
-} 
+}

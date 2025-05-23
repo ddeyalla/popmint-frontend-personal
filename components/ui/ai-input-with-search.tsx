@@ -20,6 +20,9 @@ interface AIInputWithSearchProps {
   isProcessing?: boolean;
   onCancel?: () => void;
   showCancelModal?: () => Promise<boolean>;
+  autoFocus?: boolean;
+  value?: string;
+  showUrlDetection?: boolean;
 }
 
 export function AIInputWithSearch({
@@ -34,9 +37,15 @@ export function AIInputWithSearch({
   disabled = false,
   isProcessing = false,
   onCancel,
-  showCancelModal
+  showCancelModal,
+  autoFocus = false,
+  value: externalValue,
+  showUrlDetection = false
 }: AIInputWithSearchProps) {
-  const [value, setValue] = useState("");
+  const [internalValue, setInternalValue] = useState("");
+
+  // Use external value if provided, otherwise use internal state
+  const value = externalValue !== undefined ? externalValue : internalValue;
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight,
     maxHeight,
@@ -60,7 +69,10 @@ export function AIInputWithSearch({
     // Handle normal submission
     if (value.trim()) {
       onSubmit?.(value, showSearch);
-      setValue("");
+      // Only clear internal state if we're not using external value
+      if (externalValue === undefined) {
+        setInternalValue("");
+      }
       adjustHeight(true);
     }
   };
@@ -94,22 +106,32 @@ export function AIInputWithSearch({
                 }
               }}
               onChange={(e) => {
-                setValue(e.target.value);
+                // Only update internal state if we're not using external value
+                if (externalValue === undefined) {
+                  setInternalValue(e.target.value);
+                }
                 adjustHeight();
                 onChange?.(e.target.value);
               }}
+              autoFocus={autoFocus}
             />
           </div>
 
           <div className="h-4 dark:bg-white/5">
             <div className="absolute left-2 bottom-2 flex items-center gap-2">
+              {showUrlDetection && (
+                <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                  <Globe className="w-3 h-3" />
+                  <span>URL detected</span>
+                </div>
+              )}
               <label className={cn(
                 "cursor-pointer p-2 bg-black/5 dark:bg-white/5",
                 disabled && "opacity-50 cursor-not-allowed"
               )}>
-                <input 
-                  type="file" 
-                  className="hidden" 
+                <input
+                  type="file"
+                  className="hidden"
                   onChange={handleFileChange}
                   disabled={disabled}
                 />
@@ -203,4 +225,4 @@ export function AIInputWithSearch({
       </div>
     </div>
   );
-} 
+}

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { MessageRenderer } from "./MessageRenderer"
-import { ChatInput } from "./chat-input"
+import ChatInput from "./chat-input"
 import { useChatStore } from "@/store/chatStore"
 import { CheckCircle, CircleCheck, ImageIcon, Store } from "lucide-react"
 import { useSessionStore } from "@/store/sessionStore"
@@ -25,7 +25,7 @@ export function ChatPanel() {
   // Debug logging for messages
   console.log(`🔥 ChatPanel - Messages count: ${messages.length}`);
   messages.forEach((msg, index) => {
-    console.log(`🔥 ChatPanel - Message ${index}: ${msg.id}, type: ${msg.type}`);
+    console.log(`🔥 ChatPanel - Message ${index}: ${msg.id}, type: ${msg.type}, role: ${msg.role}`);
   });
 
   // Set project name from localStorage if it exists
@@ -41,7 +41,7 @@ export function ChatPanel() {
   // Check for initial message from homepage
   useEffect(() => {
     const initialMessageStr = localStorage.getItem("popmint-initial-message")
-    
+
     if (initialMessageStr && messages.length === 0) {
       try {
         const initialMessage = JSON.parse(initialMessageStr)
@@ -52,10 +52,10 @@ export function ChatPanel() {
           content: initialMessage.content,
           imageUrls: initialMessage.imageUrls
         })
-        
+
         // Clear the stored message so it's not added again
         localStorage.removeItem("popmint-initial-message")
-        
+
         // If the initial message is a DALL-E command, trigger image generation
         const isImageRequest = initialMessage.content.trim().toLowerCase().startsWith('/image') || initialMessage.content.trim().toLowerCase().includes('generate image');
         if (isImageRequest) {
@@ -68,13 +68,13 @@ export function ChatPanel() {
               const objects = useCanvasStore.getState().objects;
               const imageExistsOnCanvas = (url: string) => {
                 const isProxied = url.startsWith('/api/proxy-image');
-                const originalUrl = isProxied 
+                const originalUrl = isProxied
                   ? decodeURIComponent(url.split('?url=')[1] || '')
                   : url;
                 return objects.some(obj => {
                   if (!obj.src) return false;
                   const objIsProxied = obj.src.startsWith('/api/proxy-image');
-                  const objOriginalUrl = objIsProxied 
+                  const objOriginalUrl = objIsProxied
                     ? decodeURIComponent(obj.src.split('?url=')[1] || '')
                     : obj.src;
                   return objOriginalUrl === originalUrl || obj.src === url;
@@ -93,10 +93,10 @@ export function ChatPanel() {
         } else {
           // Add an agent response after a short delay (for demo purposes)
           setTimeout(() => {
-            addMessage({ 
+            addMessage({
               role: "assistant",
-              type: "agent_progress", 
-              content: "Thinking about your request..." 
+              type: "agent_progress",
+              content: "Thinking about your request..."
             })
           }, 800)
         }
@@ -117,7 +117,7 @@ export function ChatPanel() {
   }, [messages]);
 
   // Check if there are any messages with images
-  const hasImageMessages = messages.some(message => 
+  const hasImageMessages = messages.some(message =>
     message.imageUrls && message.imageUrls.length > 0
   );
 

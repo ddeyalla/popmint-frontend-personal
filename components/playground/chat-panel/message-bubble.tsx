@@ -1,9 +1,10 @@
 "use client";
 
 import type { ChatMessage } from "@/store/chatStore";
-import { User } from "lucide-react";
+import { User, Bot, MessageCircle } from "lucide-react";
 import Image from "next/image"; // Using next/image for optimization
 import { cn } from "@/lib/utils";
+import { renderLucideIcon } from "@/lib/icon-utils";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -14,7 +15,7 @@ interface MessageBubbleProps {
  * Used for basic user/assistant text interactions.
  */
 export function MessageBubble({ message }: MessageBubbleProps) {
-  const { role, content, timestamp, imageUrls } = message;
+  const { role, content, timestamp, imageUrls, icon } = message;
   const isUserMessage = role === "user";
 
   // Determine avatar based on message role
@@ -24,7 +25,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     </div>
   ) : (
     <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-      <Image src="/popmint_logo.svg" alt="Popmint Logo" width={16} height={16} />
+      {icon ?
+        renderLucideIcon(icon, { size: 16, className: "text-gray-700" }) :
+        <Image src="/popmint_logo.svg" alt="Popmint Logo" width={16} height={16} />
+      }
     </div>
   );
 

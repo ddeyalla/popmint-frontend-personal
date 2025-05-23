@@ -2,9 +2,9 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 
 // Simplified stage system - one source of truth
-export type AdGenerationStage = 
+export type AdGenerationStage =
   | 'thinking'
-  | 'planning' 
+  | 'planning'
   | 'scraping'
   | 'researching'
   | 'concepting'
@@ -14,12 +14,14 @@ export type AdGenerationStage =
   | 'error';
 
 // Simplified message types
-export type MessageType = 
+export type MessageType =
   | 'text'
   | 'ad_generation'
   | 'ad_step_complete'
   | 'agent_progress'
   | 'agent_output'
+  | 'agent_bubble'
+  | 'temporary_status'
   | 'error';
 
 // Step timing information
@@ -32,23 +34,66 @@ export interface StepTiming {
   data?: any;
 }
 
+// Agent bubble types
+export type AgentBubbleType =
+  | 'plan'
+  | 'product_analysis'
+  | 'research'
+  | 'creative_strategy'
+  | 'ad_creation';
+
+// Section status types
+export type SectionStatus =
+  | 'pending'
+  | 'active'
+  | 'completed'
+  | 'error';
+
+// Agent bubble section
+export interface AgentBubbleSection {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  status: SectionStatus;
+  startTime?: Date;
+  endTime?: Date;
+  duration?: number;
+  data?: any;
+}
+
+// Agent bubble data
+export interface AgentBubbleData {
+  type: AgentBubbleType;
+  title: string;
+  icon: string;
+  gradient?: string;
+  startTime: Date;
+  endTime?: Date;
+  duration?: number;
+  sections: AgentBubbleSection[];
+  isCompleted: boolean;
+  error?: string;
+  jobId: string;
+}
+
 // Simplified ad generation data
 export interface AdGenerationData {
   jobId: string;
   stage: AdGenerationStage;
   progress: number;
   message?: string;
-  
+
   // Stage-specific data
   scrapedContent?: any;
   researchSummary?: string;
   adIdeas?: any[];
   generatedImages?: string[];
-  
+
   // Error handling
   error?: string;
   errorCode?: string;
-  
+
   // Timing
   startTime?: Date;
   stageStartTime?: Date;
@@ -62,23 +107,27 @@ export interface ChatMessage {
   type: MessageType;
   content: string;
   timestamp: Date;
-  
-  // Optional data for ad generation messages
+  icon?: string;
+
+  // Optional data for different message types
   adData?: AdGenerationData;
+  agentData?: AgentBubbleData;
   imageUrls?: string[];
+  isTemporary?: boolean;
 }
 
 interface ChatState {
   messages: ChatMessage[];
-  
+
   // Current ad generation job
   currentJob: AdGenerationData | null;
-  
+
   // Actions
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => string;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   clearMessages: () => void;
-  
+  removeMessage: (id: string) => void;
+
   // Ad generation specific actions
   startAdGeneration: (jobId: string, userMessage: string) => void;
   updateAdGeneration: (jobId: string, stage: AdGenerationStage, data?: Partial<AdGenerationData>) => void;
@@ -86,6 +135,14 @@ interface ChatState {
   addGeneratedImage: (jobId: string, imageUrl: string) => void;
   setAdGenerationError: (jobId: string, error: string, errorCode?: string) => void;
   completeAdGeneration: (jobId: string, images?: string[]) => void;
+
+  // Agent bubble specific actions
+  addAgentBubble: (type: AgentBubbleType, title: string, icon: string, jobId: string, gradient?: string) => string;
+  updateAgentBubble: (id: string, updates: Partial<AgentBubbleData>) => void;
+  addAgentBubbleSection: (bubbleId: string, section: Omit<AgentBubbleSection, 'id'>) => string;
+  updateAgentBubbleSection: (bubbleId: string, sectionId: string, updates: Partial<AgentBubbleSection>) => void;
+  completeAgentBubble: (bubbleId: string) => void;
+  addTemporaryMessage: (content: string, icon: string) => string;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -99,17 +156,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       id,
       timestamp: new Date(),
     };
-    
+
     set((state) => ({
       messages: [...state.messages, newMessage]
     }));
-    
+
     return id;
   },
 
   updateMessage: (id, updates) => {
     set((state) => ({
-      messages: state.messages.map(msg => 
+      messages: state.messages.map(msg =>
         msg.id === id ? { ...msg, ...updates } : msg
       )
     }));
@@ -117,6 +174,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearMessages: () => {
     set({ messages: [], currentJob: null });
+  },
+
+  removeMessage: (id) => {
+    set((state) => ({
+      messages: state.messages.filter(msg => msg.id !== id)
+    }));
   },
 
   startAdGeneration: (jobId, userMessage) => {
@@ -270,4 +333,146 @@ export const useChatStore = create<ChatState>((set, get) => ({
       generatedImages: images,
     });
   },
-})); 
+
+  // Agent bubble specific actions
+  addAgentBubble: (type, title, icon, jobId, gradient) => {
+    const id = uuidv4();
+    const newMessage: ChatMessage = {
+      id,
+      role: 'assistant',
+      type: 'agent_bubble',
+      content: title,
+      timestamp: new Date(),
+      icon,
+      agentData: {
+        type,
+        title,
+        icon,
+        jobId,
+        gradient,
+        startTime: new Date(),
+        sections: [],
+        isCompleted: false
+      }
+    };
+
+    set((state) => ({
+      messages: [...state.messages, newMessage]
+    }));
+
+    return id;
+  },
+
+  updateAgentBubble: (id, updates) => {
+    set((state) => ({
+      messages: state.messages.map(msg => {
+        if (msg.id === id && msg.type === 'agent_bubble' && msg.agentData) {
+          return {
+            ...msg,
+            agentData: {
+              ...msg.agentData,
+              ...updates
+            }
+          };
+        }
+        return msg;
+      })
+    }));
+  },
+
+  addAgentBubbleSection: (bubbleId, section) => {
+    const sectionId = uuidv4();
+
+    set((state) => {
+      const updatedMessages = state.messages.map(msg => {
+        if (msg.id === bubbleId && msg.type === 'agent_bubble' && msg.agentData) {
+          const newSection: AgentBubbleSection = {
+            id: sectionId,
+            ...section
+          };
+
+          return {
+            ...msg,
+            agentData: {
+              ...msg.agentData,
+              sections: [...msg.agentData.sections, newSection]
+            }
+          };
+        }
+        return msg;
+      });
+
+      return { messages: updatedMessages };
+    });
+
+    return sectionId;
+  },
+
+  updateAgentBubbleSection: (bubbleId, sectionId, updates) => {
+    set((state) => {
+      const updatedMessages = state.messages.map(msg => {
+        if (msg.id === bubbleId && msg.type === 'agent_bubble' && msg.agentData) {
+          const updatedSections = msg.agentData.sections.map(section =>
+            section.id === sectionId ? { ...section, ...updates } : section
+          );
+
+          return {
+            ...msg,
+            agentData: {
+              ...msg.agentData,
+              sections: updatedSections
+            }
+          };
+        }
+        return msg;
+      });
+
+      return { messages: updatedMessages };
+    });
+  },
+
+  completeAgentBubble: (bubbleId) => {
+    const now = new Date();
+
+    set((state) => {
+      const updatedMessages = state.messages.map(msg => {
+        if (msg.id === bubbleId && msg.type === 'agent_bubble' && msg.agentData) {
+          const startTime = msg.agentData.startTime;
+          const duration = now.getTime() - startTime.getTime();
+
+          return {
+            ...msg,
+            agentData: {
+              ...msg.agentData,
+              isCompleted: true,
+              endTime: now,
+              duration
+            }
+          };
+        }
+        return msg;
+      });
+
+      return { messages: updatedMessages };
+    });
+  },
+
+  addTemporaryMessage: (content, icon) => {
+    const id = uuidv4();
+    const newMessage: ChatMessage = {
+      id,
+      role: 'assistant',
+      type: 'temporary_status',
+      content,
+      timestamp: new Date(),
+      icon,
+      isTemporary: true
+    };
+
+    set((state) => ({
+      messages: [...state.messages, newMessage]
+    }));
+
+    return id;
+  }
+}));
