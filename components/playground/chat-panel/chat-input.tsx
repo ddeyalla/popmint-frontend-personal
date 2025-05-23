@@ -554,7 +554,7 @@ const ChatInput = ({ disabled: propDisabled = false }: ChatInputProps) => {
   };
 
   return (
-    <div className="relative w-full px-1 py-1 rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]">
+    <div className="relative w-full rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]">
             <AIInputWithSearch
         onChange={setInputValue}
         onSubmit={handleSubmit}

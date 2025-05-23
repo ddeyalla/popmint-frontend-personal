@@ -565,23 +565,33 @@ export function ModernAdGenerationFlow({
             
             {generatedImages && generatedImages.length > 0 && (
               <div className="group relative h-48 mt-2">
-                {generatedImages.map((img, index) => (
-                  <img
-                    key={index}
-                    src={img}
-                    alt={`Generated ad ${index + 1}`}
-                    className={cn(
-                      "absolute w-32 h-40 object-cover rounded-[12px] shadow-lg transition-transform duration-200 cursor-pointer",
-                      index === 0 && "top-0 left-0 z-30 group-hover:translate-x-0 group-hover:rotate-0 -rotate-15",
-                      index === 1 && "top-0 left-8 z-20 group-hover:translate-x-8 group-hover:rotate-0 -rotate-5",
-                      index === 2 && "top-0 left-16 z-10 group-hover:translate-x-10 group-hover:rotate-0 rotate-0",
-                      index === 3 && "top-0 left-24 z-0 group-hover:translate-x-15 group-hover:rotate-0 rotate-10"
-                    )}
-                    style={{
-                      zIndex: generatedImages.length - index
-                    }}
-                  />
-                ))}
+                {generatedImages.map((img, index) => {
+                  const [isBlurred, setIsBlurred] = React.useState(true);
+                  React.useEffect(() => {
+                    const timeout = setTimeout(() => setIsBlurred(false), 100);
+                    return () => clearTimeout(timeout);
+                  }, [img]);
+                  return (
+                    <img
+                      key={index}
+                      src={img}
+                      alt={`Generated ad ${index + 1}`}
+                      className={cn(
+                        "absolute w-32 h-40 object-cover rounded-[12px] shadow-lg transition-transform duration-200 cursor-pointer",
+                        index === 0 && "top-0 left-0 z-30 group-hover:translate-x-0 group-hover:rotate-0 -rotate-15",
+                        index === 1 && "top-0 left-8 z-20 group-hover:translate-x-8 group-hover:rotate-0 -rotate-5",
+                        index === 2 && "top-0 left-16 z-10 group-hover:translate-x-10 group-hover:rotate-0 rotate-0",
+                        index === 3 && "top-0 left-24 z-0 group-hover:translate-x-15 group-hover:rotate-0 rotate-10",
+                        isBlurred
+                          ? "filter blur-[10px] transition-[filter] duration-[800ms] ease-in-out"
+                          : "filter blur-0 transition-[filter] duration-[800ms] ease-in-out"
+                      )}
+                      style={{
+                        zIndex: generatedImages.length - index
+                      }}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

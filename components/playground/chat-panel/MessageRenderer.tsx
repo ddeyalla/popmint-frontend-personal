@@ -44,8 +44,8 @@ export function MessageRenderer({ message }: MessageRendererProps) {
 
     case 'ad_generation':
       return (
-        <div className="flex w-full justify-start">
-          <div className="max-w-[90%]">
+        <div className="flex w-full justify-start overflow-x-visible">
+          <div className="max-w-[85%] break-words">
             <AdGenerationFlowBlock
               currentStage={mapAdGenerationStageToStage(message.adData?.stage || 'thinking')}
               startTime={message.adData?.startTime}
@@ -67,8 +67,8 @@ export function MessageRenderer({ message }: MessageRendererProps) {
 
     case 'agent_progress':
       return (
-        <div className="flex w-full justify-start">
-          <div className="flex items-center gap-2 p-2">
+        <div className="flex w-full justify-start overflow-x-visible">
+          <div className="flex items-center gap-2 p-2 max-w-[85%] break-words">
             <img 
               src="/popmint_logo.svg" 
               alt="PopMint" 
@@ -81,8 +81,8 @@ export function MessageRenderer({ message }: MessageRendererProps) {
 
     case 'agent_output':
       return (
-        <div className="flex w-full justify-start">
-          <div className="max-w-[80%] p-3 rounded-lg bg-green-50 text-green-700">
+        <div className="flex w-full justify-start overflow-x-visible">
+          <div className="max-w-[85%] p-3 rounded-[10px] bg-green-50 text-green-700 break-words">
             <div className="whitespace-pre-wrap break-words">
               {message.content}
             </div>
@@ -104,11 +104,11 @@ export function MessageRenderer({ message }: MessageRendererProps) {
 
     case 'error':
       return (
-        <div className="flex w-full justify-start">
-          <div className="max-w-[80%] p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">
+        <div className="flex w-full justify-start overflow-x-visible">
+          <div className="max-w-[85%] p-3 rounded-lg bg-red-50 text-red-700 border border-red-200 break-words">
             <div className="flex items-center gap-2">
               <span className="text-red-500">⚠️</span>
-              <span>{message.content}</span>
+              <span className="break-words">{message.content}</span>
             </div>
           </div>
         </div>
