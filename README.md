@@ -137,3 +137,4 @@ Contributions to Popmint are welcome! If you find a bug or have a feature reques
 Please adhere to the Contributor Covenant Code of Conduct in all interactions.
 
 ---
+# popmint-frontend-augment
