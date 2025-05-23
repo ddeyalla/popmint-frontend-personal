@@ -108,6 +108,14 @@ export function useProductPageSSE() {
   // Connect to SSE stream
   const connectToSSE = useCallback((jobId: string) => {
     try {
+      console.log(`[ProductPage SSE] connectToSSE called with jobId: ${jobId}`);
+
+      // Validate job ID
+      if (!jobId) {
+        console.error(`[ProductPage SSE] Invalid job ID provided:`, jobId);
+        return;
+      }
+
       // Clean up any existing connection first
       if (eventSourceRef.current) {
         console.log(`[ProductPage SSE] Closing existing connection before connecting to job ID: ${jobId}`);
@@ -117,11 +125,13 @@ export function useProductPageSSE() {
 
       // Clear any existing timeouts
       if (connectionTimeoutRef.current) {
+        console.log(`[ProductPage SSE] Clearing existing connection timeout`);
         clearTimeout(connectionTimeoutRef.current);
         connectionTimeoutRef.current = null;
       }
 
       if (reconnectTimeoutRef.current) {
+        console.log(`[ProductPage SSE] Clearing existing reconnect timeout`);
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
@@ -131,6 +141,12 @@ export function useProductPageSSE() {
       // Add a timestamp parameter to avoid caching issues
       const timestamp = Date.now();
       const baseUrl = getAdGenerationStreamUrl(jobId);
+
+      if (!baseUrl) {
+        console.error(`[ProductPage SSE] Invalid stream URL generated for job ID: ${jobId}`);
+        return;
+      }
+
       const urlWithTimestamp = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
 
       console.log(`[ProductPage SSE] Creating EventSource with URL: ${urlWithTimestamp}`);

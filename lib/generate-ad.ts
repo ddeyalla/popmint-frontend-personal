@@ -15,6 +15,13 @@ export async function generateAdsFromProductUrl(jobId: string, productUrl: strin
 
   try {
     // Make the request to initiate ad generation
+    console.log(`[generate-ad] Making API request to /api/proxy/generate`);
+    console.log(`[generate-ad] Request payload:`, {
+      job_id: jobId,
+      product_url: productUrl,
+      n_images: imageCount
+    });
+
     const response = await fetch('/api/proxy/generate', {
       method: 'POST',
       headers: {
@@ -27,14 +34,19 @@ export async function generateAdsFromProductUrl(jobId: string, productUrl: strin
       }),
     });
 
+    console.log(`[generate-ad] API response status:`, response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[generate-ad] API error response:`, errorText);
       throw new Error(`Failed to start ad generation: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log(`[generate-ad] API response data:`, data);
 
     if (!data.job_id) {
+      console.error(`[generate-ad] No job_id in response:`, data);
       throw new Error('No job ID returned from the server');
     }
 

@@ -18,6 +18,8 @@ export function useSSEEventHandler() {
   // Handle SSE events
   const handleSSEEvent = useCallback((eventData: any) => {
     try {
+      console.log('[SSE] handleSSEEvent called with data:', JSON.stringify(eventData, null, 2));
+
       // Check if eventData is defined and not empty
       if (!eventData) {
         console.warn('[SSE] Received undefined or null event data');
@@ -25,6 +27,7 @@ export function useSSEEventHandler() {
       }
 
       const { jobId, stage, message, data, pct = 0, errorCode } = eventData;
+      console.log('[SSE] Extracted event properties:', { jobId, stage, message, pct, errorCode });
 
       // Validate required fields
       if (!jobId) {
@@ -38,6 +41,10 @@ export function useSSEEventHandler() {
       }
 
       console.log(`[SSE] Processing event: ${stage} for job ${jobId}`, { data, pct, message, errorCode });
+
+      // Get current chat store state
+      const currentMessages = useChatStore.getState().messages;
+      console.log(`[SSE] Current message count: ${currentMessages.length}`);
 
       const eventJobId = jobId as string;
       const mappedStage = mapBackendStage(stage);

@@ -530,19 +530,24 @@ export function CanvasArea() {
     const contentWidth = Math.max(1, maxX - minX); // Ensure contentWidth is at least 1
     const contentHeight = Math.max(1, maxY - minY); // Ensure contentHeight is at least 1
 
-    const availableWidth = (containerRef.current.offsetWidth || DEFAULT_STAGE_WIDTH) - FIT_TO_SCREEN_PADDING * 2;
-    const availableHeight = (containerRef.current.offsetHeight || DEFAULT_STAGE_HEIGHT) - FIT_TO_SCREEN_PADDING * 2;
+    // Use full container dimensions with minimal padding
+    const availableWidth = containerRef.current.offsetWidth || DEFAULT_STAGE_WIDTH;
+    const availableHeight = containerRef.current.offsetHeight || DEFAULT_STAGE_HEIGHT;
 
+    // Calculate scale to fit content within available space
     const scale = Math.min(
-      availableWidth / contentWidth,
-      availableHeight / contentHeight,
+      (availableWidth - FIT_TO_SCREEN_PADDING) / contentWidth,
+      (availableHeight - FIT_TO_SCREEN_PADDING) / contentHeight,
       MAX_ZOOM_LEVEL // Don't zoom in beyond MAX_ZOOM_LEVEL when fitting
     );
 
     const finalScale = Math.max(MIN_ZOOM_LEVEL, scale); // Ensure scale is not below MIN_ZOOM_LEVEL
 
-    const offsetX = FIT_TO_SCREEN_PADDING + (availableWidth - contentWidth * finalScale) / 2 - minX * finalScale;
-    const offsetY = FIT_TO_SCREEN_PADDING + (availableHeight - contentHeight * finalScale) / 2 - minY * finalScale;
+    // Center content in the available space
+    const offsetX = (availableWidth - contentWidth * finalScale) / 2 - minX * finalScale;
+    const offsetY = (availableHeight - contentHeight * finalScale) / 2 - minY * finalScale;
+
+    console.log('Fit to screen: scale', finalScale, 'offset', offsetX, offsetY);
 
     setZoomLevel(Number(finalScale.toFixed(2)));
     setStageOffset({ x: offsetX, y: offsetY });
@@ -588,11 +593,11 @@ export function CanvasArea() {
     <div
       className={cn(
         "relative w-full h-full bg-white overflow-hidden",
-        isSidebarCollapsed ? "fixed inset-0 z-30" : "rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]",
+        isSidebarCollapsed ? "fixed inset-0 z-30" : "rounded-[0px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]",
         // Remove padding to allow canvas to expand edge-to-edge
       )}
     >
-      <div className="pointer-events-none absolute rounded-[10px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]"></div>
+      <div className="pointer-events-none absolute rounded-[0px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]"></div>
 
       <div
         key={isSidebarCollapsed ? 'collapsed' : 'expanded'} // Key to help React re-evaluate if container changes drastically
@@ -600,7 +605,13 @@ export function CanvasArea() {
           "w-full h-full overflow-hidden",
           "flex items-center justify-center"
         )}
-        style={{ overflow: "hidden" }} // Ensure overflow hidden is applied
+        style={{
+          overflow: "hidden", // Ensure overflow hidden is applied
+          padding: 0, // No padding
+          margin: 0, // No margin
+          width: "100%", // Full width
+          height: "100%" // Full height
+        }}
         ref={containerRef}
       >
         {containerRef.current && ( // Ensure containerRef is available before rendering Stage
