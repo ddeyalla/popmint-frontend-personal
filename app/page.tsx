@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { generateImageFromPrompt } from '@/lib/generate-image'
 import { Textarea } from "@/components/ui/textarea"
 import { useAutoResizeTextarea } from "@/components/hooks/use-auto-resize-textarea"
+import { ProjectSection } from "@/components/home/project-section"
 
 // RegEx for detecting URLs in text
 const URL_REGEX = /(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi;
@@ -517,12 +518,14 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-gradient-to-tr from-sky-300 via-purple-200 via-70% to-yellow-100 relative overflow-hidden">
+    <div className="min-h-screen w-full flex flex-col relative overflow-hidden">
+      {/* Fixed gradient background */}
+      <div className="fixed inset-0 bg-gradient-to-tr from-sky-300 via-purple-200 via-70% to-yellow-100 -z-10"></div>
+      
+      {/* Noise texture overlay - also fixed */}
+      <div className="pointer-events-none fixed inset-0 z-10 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
 
-      {/* Noise texture overlay */}
-      <div className="pointer-events-none absolute inset-0 z-100 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
-
-      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
+      <div className="container mx-auto px-4 py-4 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
         {/* Header - Sticky */}
         <header className="flex justify-between items-center sticky top-0 z-10">
           <div className="flex items-center gap-2">
@@ -535,7 +538,7 @@ export default function Home() {
         </header>
 
         {/* Main Content */}
-        <main className="flex flex-col items-center justify-center flex-1 w-full max-w-3xl mx-auto">
+        <main className="flex flex-col mt-30 items-center justify-center flex-1 w-full max-w-3xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold text-center">What are we designing today?</h1>
           <p className="mt-4 text-center text-base">Concept to ads, with your personal marketing team</p>
 
@@ -673,9 +676,11 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-
         </main>
+        {/* Project Section */}     
+        <div className="mt-20">
+        <ProjectSection />
+        </div>  
       </div>
     </div>
   )

@@ -1,0 +1,45 @@
+```mermaid
+flowchart TD
+    A[User lands on Home Page] --> B{Input}
+    B -->|Product URL/Message| C[User submits input]
+    B -->|Image Upload| C
+    C --> D[Navigate to Playground (sessionId)]
+    D --> E[Playground initializes session]
+    E --> F[Restore state from localStorage]
+    F --> G[Load Chat & Canvas UI]
+    G --> H{User Action}
+    H -->|Generate Ad| I[Call generateAdsFromProductUrl (lib)]
+    I --> J[API: /api/agent/generate-image (SSE)]
+    J --> K[OpenAI DALL-E API]
+    K --> L[Return image URL via SSE]
+    L --> M[Update Zustand chat/canvas store]
+    M --> N[UI updates with generated image/ad]
+    H -->|Send Message| O[API: /api/agent/message]
+    O --> P[Process message, return response]
+    P --> M
+    N --> Q{Further Interaction?}
+    Q -->|Yes| H
+    Q -->|No| R[End Session/User leaves]
+
+    %% State Management
+    subgraph State Management
+        M
+    end
+
+    %% API Layer
+    subgraph API Layer
+        J
+        O
+    end
+
+    %% UI Layer
+    subgraph UI Layer
+        G
+        N
+    end
+
+    %% Lib Layer
+    subgraph Lib Layer
+        I
+    end
+``` 

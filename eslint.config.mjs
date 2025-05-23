@@ -9,7 +9,31 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-// Temporarily disable all ESLint rules to make the build pass
-const eslintConfig = [];
+// Basic ESLint configuration
+const eslintConfig = [
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parser: require.resolve("@typescript-eslint/parser"),
+      parserOptions: {
+        project: "./tsconfig.json",
+        sourceType: "module",
+      },
+    },
+    plugins: {
+      "@typescript-eslint": require("@typescript-eslint/eslint-plugin"),
+    },
+    rules: {
+      "@typescript-eslint/no-unused-vars": "warn",
+      // Add more TS rules as needed
+    },
+  },
+  {
+    files: ["**/*.{js,jsx}"],
+    rules: {
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
+];
 
 export default eslintConfig;

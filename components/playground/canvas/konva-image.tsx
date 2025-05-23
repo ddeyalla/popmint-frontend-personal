@@ -59,7 +59,7 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
         console.error('[KonvaImage] Failed to load image:', object.src, e);
 
         // Check if it's an external URL that might need proxying
-        if (retryCount === 0 && object.src.startsWith('http') && !object.src.startsWith('/api/proxy-image')) {
+        if (retryCount === 0 && typeof object.src === 'string' && object.src.startsWith('http') && !object.src.startsWith('/api/proxy-image')) {
           retryCount++;
           const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(object.src)}`;
           console.log('[KonvaImage] Trying with proxied URL:', proxiedUrl);

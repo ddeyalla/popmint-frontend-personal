@@ -5,8 +5,9 @@
  */
 export const addImagesToCanvas = async (imageUrls: string[], useExistingRow = false) => {
   try {
-    if (!imageUrls || imageUrls.length === 0) {
-      console.log('No images to add to canvas');
+    // Validate input
+    if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
+      console.log('No valid images to add to canvas');
       return;
     }
 
@@ -22,9 +23,10 @@ export const addImagesToCanvas = async (imageUrls: string[], useExistingRow = fa
     const START_X = 20;
     const START_Y = 20;
     const VERTICAL_SPACING = 40;
+    const MAX_IMAGES_PER_ROW = 10; // Limit images per row for better layout
 
     // Get existing objects
-    const existingObjects = canvasStore.objects;
+    const existingObjects = canvasStore.objects || [];
 
     // Find existing generated images (512x512)
     const existingGeneratedImages = existingObjects.filter(obj =>
@@ -33,83 +35,139 @@ export const addImagesToCanvas = async (imageUrls: string[], useExistingRow = fa
       obj.height === DEFAULT_IMAGE_HEIGHT
     );
 
-    // Calculate starting position
-    let startX = START_X;
-    let startY = 20;
-    let nextIndex = 0;
+    // Prepare a map of normalized URLs to detect duplicates more reliably
+    const existingImageUrlMap = new Map();
+    existingObjects.forEach(obj => {
+      if (obj.type === 'image' && obj.src) {
+        const isProxied = obj.src.startsWith('/api/proxy-image');
+        const normalizedUrl = isProxied
+          ? decodeURIComponent(obj.src.split('?url=')[1] || '')
+          : obj.src;
+        
+        if (normalizedUrl) {
+          existingImageUrlMap.set(normalizedUrl, true);
+        }
+      }
+    });
+
+    // Determine placement strategy
+    let rowStartX = START_X;
+    let rowStartY = START_Y;
+    let currentRowCount = 0;
 
     if (useExistingRow && existingGeneratedImages.length > 0) {
-      // Find the last row of generated images
-      const lastRowY = Math.max(...existingGeneratedImages.map(img => img.y));
-      const lastRowImages = existingGeneratedImages.filter(img => img.y === lastRowY);
+      // Group images by Y position to find rows
+      const rowsMap = new Map();
+      existingGeneratedImages.forEach(img => {
+        const key = Math.round(img.y); // Round to handle minor floating point differences
+        if (!rowsMap.has(key)) {
+          rowsMap.set(key, []);
+        }
+        rowsMap.get(key).push(img);
+      });
 
-      if (lastRowImages.length > 0) {
-        // Sort by X position to find the rightmost image
-        lastRowImages.sort((a, b) => (b.x + b.width) - (a.x + a.width));
-        const rightmostImage = lastRowImages[0];
+      // Find the last row with space
+      const rows = Array.from(rowsMap.entries())
+        .sort((a, b) => b[0] - a[0]); // Sort by Y position descending
 
-        // Start after the rightmost image
-        startX = rightmostImage.x + rightmostImage.width + EDGE_TO_EDGE_SPACING;
-        startY = lastRowY;
-        nextIndex = lastRowImages.length;
+      for (const [rowY, imagesInRow] of rows) {
+        if (imagesInRow.length < MAX_IMAGES_PER_ROW) {
+          // This row has space
+          currentRowCount = imagesInRow.length;
+          rowStartY = rowY;
+          
+          // Sort by X position to find the rightmost image
+          imagesInRow.sort((a: any, b: any) => (b.x + b.width) - (a.x + a.width));
+          const rightmostImage = imagesInRow[0];
+          
+          // Start after the rightmost image
+          rowStartX = rightmostImage.x + rightmostImage.width + EDGE_TO_EDGE_SPACING;
+          break;
+        }
       }
-    } else if (existingObjects.length > 0) {
-      // Start a new row below existing content
-      const maxY = Math.max(...existingObjects.map(obj => (obj.y || 0) + (obj.height || 100)));
-      startY = maxY + VERTICAL_SPACING;
+      
+      // If all rows are full, start a new row below the last one
+      if (currentRowCount >= MAX_IMAGES_PER_ROW || currentRowCount === 0) {
+        useExistingRow = false;
+        currentRowCount = 0;
+      }
+    }
+    
+    if (!useExistingRow) {
+      // Start a new row
+      rowStartX = START_X;
+      currentRowCount = 0;
+      
+      if (existingObjects.length > 0) {
+        // Find the bottom of existing content
+        const maxY = Math.max(...existingObjects.map(obj => {
+          const objY = typeof obj.y === 'number' ? obj.y : 0;
+          const objHeight = typeof obj.height === 'number' ? obj.height : 100;
+          return objY + objHeight;
+        }));
+        
+        rowStartY = maxY + VERTICAL_SPACING;
+      }
     }
 
-    // Add each image in a single row with exact 40px edge-to-edge spacing
-    imageUrls.forEach((url: string, index: number) => {
+    // Process each image
+    const addedImages = [];
+    
+    for (let i = 0; i < imageUrls.length; i++) {
+      const url = imageUrls[i];
+      if (!url) continue;
+      
       try {
         // Handle proxying for external URLs if needed
         const isExternalUrl = url.startsWith('http') && !url.startsWith('/api/proxy-image');
         const proxiedUrl = isExternalUrl
           ? `/api/proxy-image?url=${encodeURIComponent(url)}`
           : url;
-
+        
+        // Normalize URL for duplicate checking
+        const normalizedUrl = isExternalUrl ? url : proxiedUrl;
+        
         // Check if image already exists on canvas
-        const imageExists = existingObjects.some(obj => {
-          if (!obj.src) return false;
-
-          const objIsProxied = obj.src.startsWith('/api/proxy-image');
-          const objOriginalUrl = objIsProxied
-            ? decodeURIComponent(obj.src.split('?url=')[1] || '')
-            : obj.src;
-
-          const urlOriginalUrl = isExternalUrl
-            ? url
-            : proxiedUrl;
-
-          return objOriginalUrl === url || obj.src === url ||
-                objOriginalUrl === proxiedUrl || obj.src === proxiedUrl ||
-                objOriginalUrl === urlOriginalUrl || obj.src === urlOriginalUrl;
-        });
-
-        if (!imageExists) {
-          // Calculate X position for 40px edge-to-edge spacing
-          const x = startX + (index + nextIndex) * (DEFAULT_IMAGE_WIDTH + EDGE_TO_EDGE_SPACING);
-
-          // Use START_Y for consistent positioning
-          const y = START_Y;
-
-          console.log(`Adding image ${index} to canvas at position (${x}, ${y})`);
-
-          // Add image to canvas with fixed dimensions for generated images
-          canvasStore.addImage(
-            isExternalUrl ? proxiedUrl : url, // Use proxied URL for external images
-            x,
-            y,
-            true // Mark as generated image to ensure 512x512 size
-          );
-        } else {
-          console.log(`Image ${index} already exists on canvas, skipping`);
+        if (existingImageUrlMap.has(normalizedUrl)) {
+          console.log(`Image ${i} already exists on canvas, skipping`);
+          continue;
         }
+        
+        // Check if we need to start a new row
+        if (currentRowCount >= MAX_IMAGES_PER_ROW) {
+          rowStartX = START_X;
+          rowStartY += DEFAULT_IMAGE_HEIGHT + VERTICAL_SPACING;
+          currentRowCount = 0;
+        }
+        
+        // Calculate position for this image
+        const x = rowStartX + (currentRowCount * (DEFAULT_IMAGE_WIDTH + EDGE_TO_EDGE_SPACING));
+        const y = rowStartY;
+        
+        console.log(`Adding image ${i} to canvas at position (${x}, ${y})`);
+        
+        // Add image to canvas with fixed dimensions for generated images
+        canvasStore.addImage(
+          isExternalUrl ? proxiedUrl : url,
+          x,
+          y,
+          true // Mark as generated image to ensure 512x512 size
+        );
+        
+        // Mark this URL as added
+        existingImageUrlMap.set(normalizedUrl, true);
+        addedImages.push(normalizedUrl);
+        
+        // Increment counter for current row
+        currentRowCount++;
       } catch (imgErr) {
-        console.error(`Error adding image ${index} to canvas:`, imgErr);
+        console.error(`Error adding image ${i} to canvas:`, imgErr);
       }
-    });
+    }
+    
+    return addedImages.length > 0;
   } catch (error) {
     console.error('Error adding images to canvas:', error);
+    return false;
   }
 };
