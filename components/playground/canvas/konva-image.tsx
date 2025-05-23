@@ -57,7 +57,20 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
       img.onerror = (e) => {
         if (didCancel) return;
         console.error('[KonvaImage] Failed to load image:', object.src, e);
-        if (retryCount < 1) {
+
+        // Check if it's an external URL that might need proxying
+        if (retryCount === 0 && object.src.startsWith('http') && !object.src.startsWith('/api/proxy-image')) {
+          retryCount++;
+          const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(object.src)}`;
+          console.log('[KonvaImage] Trying with proxied URL:', proxiedUrl);
+
+          // Update the object source to use the proxied URL
+          updateObject(object.id, { src: proxiedUrl });
+          return; // The component will re-render with the new src
+        }
+
+        // Regular retry for other errors
+        if (retryCount < 2) {
           retryCount++;
           setTimeout(loadImage, 1000); // Retry after 1s
           console.log('[KonvaImage] Retrying image load:', object.src);
@@ -82,7 +95,7 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
       setImage(null);
       setImageLoaded(false);
     }
-  }, [object.src])
+  }, [object.src, updateObject, object.id])
 
   useEffect(() => {
     if (isSelected && !isMultiSelected && transformerRef.current && imageRef.current) {
@@ -120,7 +133,7 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
 
   const handleDownload = () => {
     if (!object.src) return;
-    
+
     // Create a temporary anchor element to trigger the download
     const anchor = document.createElement('a');
     anchor.href = object.src;
@@ -151,18 +164,18 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
   // Calculate button dimensions with maximum constraints
   const maxScale = 1.5; // Maximum scale factor when zooming out
   const effectiveScale = Math.min(inverseScale, maxScale);
-  
+
   const buttonWidth = 80 * effectiveScale;
   const buttonHeight = 30 * effectiveScale;
   const buttonSpacing = 10 * effectiveScale;
   const labelFontSize = Math.min(12 * effectiveScale, 16); // Max font size of 16px
   const buttonFontSize = Math.min(12 * effectiveScale, 16); // Max font size of 16px
-  
+
   // Calculate positions for UI elements
   const fileNameY = (object.y || 0) - 22 * effectiveScale;
   const dimensionsY = (object.y || 0) + (object.height || 0) + 12 * effectiveScale;
   const toolbarY = dimensionsY + 28 * effectiveScale;
-  
+
   return (
     <Group>
       <Image
@@ -186,7 +199,7 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
         onTransformEnd={handleTransformEnd}
         id={id || object.id}
       />
-      
+
       {isSelected && !isMultiSelected && (
         <>
           {/* File name display above image - simple text, no tooltip */}
@@ -202,7 +215,7 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
             scaleX={effectiveScale}
             scaleY={effectiveScale}
           />
-          
+
           {/* Dimensions display below image */}
           <Group
             x={(object.x || 0) + ((object.width || 0) / 2)}
@@ -213,16 +226,16 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
             <Rect
               width={80}
               height={22}
-              cornerRadius={6} 
-              fill="rgba(252, 252, 252, 0.95)" 
-              stroke="rgba(0, 0, 0, 0.04)" 
+              cornerRadius={6}
+              fill="rgba(252, 252, 252, 0.95)"
+              stroke="rgba(0, 0, 0, 0.04)"
               strokeWidth={1}
               offsetX={40}
               offsetY={0}
-              shadowColor="rgba(0,0,0,0.08)" 
-              shadowBlur={4} 
+              shadowColor="rgba(0,0,0,0.08)"
+              shadowBlur={4}
               shadowOffsetY={1}
-              shadowOpacity={0.6} 
+              shadowOpacity={0.6}
               scaleX={effectiveScale}
               scaleY={effectiveScale}
             />
@@ -241,7 +254,7 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
               scaleY={effectiveScale}
             />
           </Group>
-          
+
           {/* Control toolbar - left aligned with fully rounded buttons */}
           <Group
             x={(object.x || 0)}
@@ -258,11 +271,11 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
               <Rect
                 width={buttonWidth}
                 height={buttonHeight}
-                fill={hoveredButton === 'download' ? '#e0f2fe' : 'white'} 
-                stroke={hoveredButton === 'download' ? '#7dd3fc' : 'rgba(0, 0, 0, 0.07)'} 
+                fill={hoveredButton === 'download' ? '#e0f2fe' : 'white'}
+                stroke={hoveredButton === 'download' ? '#7dd3fc' : 'rgba(0, 0, 0, 0.07)'}
                 strokeWidth={1}
                 cornerRadius={buttonHeight / 2} /* Fully rounded */
-                shadowColor="rgba(0,0,0,0.06)" 
+                shadowColor="rgba(0,0,0,0.06)"
                 shadowBlur={5}
                 shadowOffsetY={2}
                 shadowOpacity={hoveredButton === 'download' ? 0.7 : 0.5}
@@ -278,10 +291,10 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
                 fontSize={buttonFontSize}
                 fontFamily="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
                 fontStyle="500"
-                fill={hoveredButton === 'download' ? '#0ea5e9' : '#3f3f46'} 
+                fill={hoveredButton === 'download' ? '#0ea5e9' : '#3f3f46'}
               />
             </Group>
-            
+
             {/* Delete button */}
             <Group
               x={buttonWidth + buttonSpacing}
@@ -292,11 +305,11 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
               <Rect
                 width={buttonWidth}
                 height={buttonHeight}
-                fill={hoveredButton === 'delete' ? '#fee2e2' : 'white'} 
-                stroke={hoveredButton === 'delete' ? '#fca5a5' : 'rgba(0, 0, 0, 0.07)'} 
+                fill={hoveredButton === 'delete' ? '#fee2e2' : 'white'}
+                stroke={hoveredButton === 'delete' ? '#fca5a5' : 'rgba(0, 0, 0, 0.07)'}
                 strokeWidth={1}
                 cornerRadius={buttonHeight / 2} /* Fully rounded */
-                shadowColor="rgba(0,0,0,0.06)" 
+                shadowColor="rgba(0,0,0,0.06)"
                 shadowBlur={5}
                 shadowOffsetY={2}
                 shadowOpacity={hoveredButton === 'delete' ? 0.7 : 0.5}
@@ -312,11 +325,11 @@ function KonvaImageBase({ object, isSelected, onSelect, id, isMultiSelected, onT
                 fontSize={buttonFontSize}
                 fontFamily="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
                 fontStyle="500"
-                fill={hoveredButton === 'delete' ? '#ef4444' : '#3f3f46'} 
+                fill={hoveredButton === 'delete' ? '#ef4444' : '#3f3f46'}
               />
             </Group>
           </Group>
-          
+
           {isSelected && !isMultiSelected && (
             <Transformer
               ref={transformerRef}

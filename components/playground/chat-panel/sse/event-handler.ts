@@ -208,10 +208,36 @@ export function useSSEEventHandler() {
           // Update the ad creation agent bubble
           handleAdCreationEvent(eventJobId, 'progress', data);
 
-          // Also update the legacy ad generation state for backward compatibility
+          // Create a message for the generated image if it doesn't exist yet
           if (data?.image_url) {
+            // First, check if we already have a message for this job with images
+            const messages = useChatStore.getState().messages;
+            const existingImageMessage = messages.find(msg =>
+              msg.type === 'agent_output' &&
+              msg.role === 'assistant' &&
+              msg.content.includes('generated')
+            );
+
+            if (existingImageMessage) {
+              // Add this image to the existing message
+              useChatStore.getState().addImageToChat(existingImageMessage.id, data.image_url, true);
+            } else {
+              // Create a new message for this image
+              const messageId = addMessage({
+                role: 'assistant',
+                type: 'agent_output',
+                content: `Generated image ${data?.current_image || 1} of ${data?.total_images || '?'}`,
+                icon: 'ImageIcon'
+              });
+
+              // Add the image to both chat and canvas
+              useChatStore.getState().addImageToChat(messageId, data.image_url, true);
+            }
+
+            // Also update the legacy ad generation state for backward compatibility
             addGeneratedImage(eventJobId, data.image_url);
           }
+
           updateAdGeneration(eventJobId, 'imaging', {
             progress: pct,
             message: data?.current_image && data?.total_images
@@ -236,6 +262,31 @@ export function useSSEEventHandler() {
         case 'done':
           // Handle completion event
           handleCompletionEvent(eventJobId, data);
+
+          // Create a final message with all images if they're not already displayed
+          if (data?.imageUrls && data.imageUrls.length > 0) {
+            // Check if we already have a message with all these images
+            const messages = useChatStore.getState().messages;
+            const existingImageMessage = messages.find(msg =>
+              msg.type === 'agent_output' &&
+              msg.imageUrls &&
+              msg.imageUrls.length === data.imageUrls.length &&
+              msg.imageUrls.every(url => data.imageUrls.includes(url))
+            );
+
+            if (!existingImageMessage) {
+              // Create a new message with all images
+              const messageId = addMessage({
+                role: 'assistant',
+                type: 'agent_output',
+                content: `Here are all the generated ad images:`,
+                icon: 'ImageIcon'
+              });
+
+              // Add all images to both chat and canvas
+              useChatStore.getState().addImagesToChatAndCanvas(messageId, data.imageUrls);
+            }
+          }
 
           // Also update the legacy ad generation state for backward compatibility
           completeAdGenerationStep(

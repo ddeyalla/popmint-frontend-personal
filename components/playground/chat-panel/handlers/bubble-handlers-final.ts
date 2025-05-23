@@ -5,16 +5,16 @@ import { findAgentBubble } from "./bubble-handlers";
  * Helper function to handle ad creation events
  */
 export const handleAdCreationEvent = (
-  jobId: string, 
-  eventType: 'started' | 'progress' | 'completed', 
+  jobId: string,
+  eventType: 'started' | 'progress' | 'completed',
   data: any
 ) => {
-  const { 
-    addMessage, 
-    addAgentBubble, 
-    addAgentBubbleSection, 
-    updateAgentBubbleSection, 
-    completeAgentBubble 
+  const {
+    addMessage,
+    addAgentBubble,
+    addAgentBubbleSection,
+    updateAgentBubbleSection,
+    completeAgentBubble
   } = useChatStore.getState();
 
   // Find existing Ad Creation bubble or create a new one
@@ -27,7 +27,7 @@ export const handleAdCreationEvent = (
         role: 'assistant',
         type: 'text',
         content: "Love those ideas! Now for the visual magic – let's generate some eye-catching ad images.",
-        icon: 'Bot'
+        icon: 'PopMintLogo'
       });
 
       // Create the Ad Creation bubble
@@ -84,14 +84,18 @@ export const handleAdCreationEvent = (
       // Complete the bubble
       completeAgentBubble(existingBubble.id);
 
-      // Add output message
-      addMessage({
+      // Add output message with images
+      const messageId = addMessage({
         role: 'assistant',
-        type: 'text',
+        type: 'agent_output',
         content: `Visuals are complete! Take a look at the generated ads.`,
-        icon: 'Bot',
-        imageUrls: data?.imageUrls || []
+        icon: 'PopMintLogo'
       });
+
+      // Add images to both chat and canvas
+      if (data?.imageUrls && data.imageUrls.length > 0) {
+        useChatStore.getState().addImagesToChatAndCanvas(messageId, data.imageUrls);
+      }
     }
   }
 
@@ -109,7 +113,7 @@ export const handleCompletionEvent = (_jobId: string, _data: any) => {
     role: 'assistant',
     type: 'text',
     content: "And we're all done! From product page to finished ad creatives. I hope these hit the mark for you!",
-    icon: 'Award'
+    icon: 'PopMintLogo'
   });
 };
 
@@ -117,10 +121,10 @@ export const handleCompletionEvent = (_jobId: string, _data: any) => {
  * Helper function to handle error event
  */
 export const handleErrorEvent = (jobId: string, data: any, errorCode?: string) => {
-  const { 
-    addMessage, 
-    updateAgentBubble, 
-    updateAgentBubbleSection 
+  const {
+    addMessage,
+    updateAgentBubble,
+    updateAgentBubbleSection
   } = useChatStore.getState();
 
   // Add error message

@@ -75,7 +75,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set(state => {
       // Cache the new state value to avoid re-computation
       const newState = !state.isSidebarCollapsed;
-      
+
       // Update state in a single batch
       return { isSidebarCollapsed: newState };
     });
@@ -101,34 +101,68 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
   },
 
-  addImage: (src, x = 20, y = 20) => {
-    // TEST_DALL_E_INTEGRATION - Add debugging logs
-    console.log('🔍 DEBUG - canvasStore.addImage called with src:', src, 'x:', x, 'y:', y);
+  addImage: (src, x = 20, y = 20, isGeneratedImage = false) => {
+    console.log('🔍 DEBUG - canvasStore.addImage called with src:', src, 'x:', x, 'y:', y, 'isGeneratedImage:', isGeneratedImage);
     try {
+      // Check if the image already exists on canvas to prevent duplicates
+      const existingObjects = get().objects;
+      const imageExists = existingObjects.some(obj => {
+        if (!obj.src) return false;
+
+        // Handle proxied URLs
+        const objIsProxied = obj.src.startsWith('/api/proxy-image');
+        const srcIsProxied = src.startsWith('/api/proxy-image');
+
+        const objOriginalUrl = objIsProxied
+          ? decodeURIComponent(obj.src.split('?url=')[1] || '')
+          : obj.src;
+
+        const srcOriginalUrl = srcIsProxied
+          ? decodeURIComponent(src.split('?url=')[1] || '')
+          : src;
+
+        return objOriginalUrl === srcOriginalUrl || obj.src === src;
+      });
+
+      if (imageExists) {
+        console.log('🔍 DEBUG - Image already exists on canvas, skipping:', src);
+        return;
+      }
+
       // Create a new image element
       const img = new Image()
       img.crossOrigin = "anonymous"
-      img.src = src
-      console.log('🔍 DEBUG - Created new Image with crossOrigin=anonymous and src:', src);
 
       // Handle image load
       img.onload = () => {
         console.log('🔍 DEBUG - Image loaded successfully, dimensions:', img.width, 'x', img.height);
         try {
-          const maxWidth = 400
-          const scale = img.width > maxWidth ? maxWidth / img.width : 1
-          console.log('🔍 DEBUG - Calculated image scale:', scale, 'maxWidth:', maxWidth);
+          let finalWidth, finalHeight;
+
+          // If this is a generated image, force 512x512 dimensions
+          if (isGeneratedImage) {
+            finalWidth = 512;
+            finalHeight = 512;
+            console.log('🔍 DEBUG - Using fixed dimensions for generated image: 512x512');
+          } else {
+            // For other images, scale them if needed
+            const maxWidth = 400
+            const scale = img.width > maxWidth ? maxWidth / img.width : 1
+            finalWidth = img.width * scale;
+            finalHeight = img.height * scale;
+            console.log('🔍 DEBUG - Calculated image scale:', scale, 'maxWidth:', maxWidth);
+          }
 
           // Add the object to the store
-          console.log('🔍 DEBUG - Adding image object to store with dimensions:', 
-            'width:', img.width * scale, 
-            'height:', img.height * scale);
+          console.log('🔍 DEBUG - Adding image object to store with dimensions:',
+            'width:', finalWidth,
+            'height:', finalHeight);
           get().addObject({
             type: "image",
             x,
             y,
-            width: img.width * scale,
-            height: img.height * scale,
+            width: finalWidth,
+            height: finalHeight,
             src,
           })
           console.log('🔍 DEBUG - Image object added to store successfully');
@@ -140,6 +174,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       // Handle image error
       img.onerror = (event) => {
         console.error(`❌ ERROR - Failed to load image: ${src}`, event);
+
+        // Try with proxied URL if it's an external URL
+        if (src.startsWith('http') && !src.startsWith('/api/proxy-image')) {
+          const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(src)}`;
+          console.log('🔍 DEBUG - Trying with proxied URL:', proxiedUrl);
+          get().addImage(proxiedUrl, x, y, isGeneratedImage);
+          return;
+        }
 
         // Add a placeholder instead
         console.log('🔍 DEBUG - Adding placeholder text for failed image');
@@ -153,6 +195,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           fill: "#FF0000",
         })
       }
+
+      // Set the source to start loading
+      img.src = src;
+
     } catch (error) {
       console.error("❌ ERROR - Error adding image:", error)
     }
@@ -283,7 +329,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
       // Create a new ID for the duplicate
       const newId = `${id}-${Date.now()}`;
-      
+
       // Create a duplicate with offset
       const duplicate: KonvaObject = {
         ...objectToDuplicate,

@@ -136,6 +136,10 @@ interface ChatState {
   setAdGenerationError: (jobId: string, error: string, errorCode?: string) => void;
   completeAdGeneration: (jobId: string, images?: string[]) => void;
 
+  // Image handling
+  addImageToChat: (messageId: string, imageUrl: string, addToCanvas?: boolean) => void;
+  addImagesToChatAndCanvas: (messageId: string, imageUrls: string[]) => void;
+
   // Agent bubble specific actions
   addAgentBubble: (type: AgentBubbleType, title: string, icon: string, jobId: string, gradient?: string) => string;
   updateAgentBubble: (id: string, updates: Partial<AgentBubbleData>) => void;
@@ -474,5 +478,81 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     return id;
+  },
+
+  // Add a single image to a chat message and optionally to the canvas
+  addImageToChat: (messageId, imageUrl, addToCanvas = true) => {
+    // Update the message with the new image URL
+    set((state) => {
+      const updatedMessages = state.messages.map(msg => {
+        if (msg.id === messageId) {
+          return {
+            ...msg,
+            imageUrls: [...(msg.imageUrls || []), imageUrl]
+          };
+        }
+        return msg;
+      });
+
+      return { messages: updatedMessages };
+    });
+
+    // Add the image to the canvas if requested
+    if (addToCanvas) {
+      // Import canvas utils to handle image placement
+      import('@/components/playground/chat-panel/utils/canvas-utils').then(({ addImagesToCanvas }) => {
+        // Add the image to the canvas with proper positioning
+        addImagesToCanvas([imageUrl], true);
+      }).catch(error => {
+        console.error('Error importing canvas utils:', error);
+
+        // Fallback to direct canvas store access if import fails
+        const { addImage } = require('@/store/canvasStore').useCanvasStore.getState();
+        const x = 20;
+        const y = 20;
+        addImage(imageUrl, x, y, true);
+      });
+    }
+  },
+
+  // Add multiple images to chat and canvas
+  addImagesToChatAndCanvas: (messageId, imageUrls) => {
+    if (!imageUrls || imageUrls.length === 0) return;
+
+    // Update the message with all new image URLs
+    set((state) => {
+      const updatedMessages = state.messages.map(msg => {
+        if (msg.id === messageId) {
+          return {
+            ...msg,
+            imageUrls: [...(msg.imageUrls || []), ...imageUrls]
+          };
+        }
+        return msg;
+      });
+
+      return { messages: updatedMessages };
+    });
+
+    // Add all images to the canvas using the canvas utils
+    import('@/components/playground/chat-panel/utils/canvas-utils').then(({ addImagesToCanvas }) => {
+      // Add the images to the canvas with proper positioning
+      addImagesToCanvas(imageUrls, false); // Start a new row for multiple images
+    }).catch(error => {
+      console.error('Error importing canvas utils:', error);
+
+      // Fallback to direct canvas store access if import fails
+      const { addImage } = require('@/store/canvasStore').useCanvasStore.getState();
+
+      // Add each image to the canvas with proper spacing
+      imageUrls.forEach((url, index) => {
+        // Position images in a row with 40px gap
+        const x = 20 + index * (512 + 40);
+        const y = 20;
+
+        // Add the image to the canvas, marking it as a generated image
+        addImage(url, x, y, true);
+      });
+    });
   }
 }));

@@ -5,12 +5,12 @@ import { findAgentBubble } from "./bubble-handlers";
  * Helper function to handle research events
  */
 export const handleResearchEvent = (jobId: string, eventType: 'started' | 'completed', data: any) => {
-  const { 
-    addMessage, 
-    addAgentBubble, 
-    addAgentBubbleSection, 
-    updateAgentBubbleSection, 
-    completeAgentBubble 
+  const {
+    addMessage,
+    addAgentBubble,
+    addAgentBubbleSection,
+    updateAgentBubbleSection,
+    completeAgentBubble
   } = useChatStore.getState();
 
   // Find existing Research bubble or create a new one
@@ -23,7 +23,7 @@ export const handleResearchEvent = (jobId: string, eventType: 'started' | 'compl
         role: 'assistant',
         type: 'text',
         content: "Alright, got the product essentials. Now, let's zoom out and research the bigger picture – market trends and competitor moves!",
-        icon: 'Bot'
+        icon: 'PopMintLogo'
       });
 
       // Create the Research bubble
@@ -80,7 +80,7 @@ export const handleResearchEvent = (jobId: string, eventType: 'started' | 'compl
         role: 'assistant',
         type: 'text',
         content: `Research phase wrapped up! This should give us a solid strategic base. Here's the full report:\n\n${data?.summary || 'Research completed successfully.'}`,
-        icon: 'Bot'
+        icon: 'PopMintLogo'
       });
     }
   }
@@ -92,16 +92,16 @@ export const handleResearchEvent = (jobId: string, eventType: 'started' | 'compl
  * Helper function to handle creative strategy events
  */
 export const handleCreativeStrategyEvent = (
-  jobId: string, 
-  eventType: 'concepts_started' | 'concepts_completed' | 'ideas_started' | 'ideas_completed', 
+  jobId: string,
+  eventType: 'concepts_started' | 'concepts_completed' | 'ideas_started' | 'ideas_completed',
   data: any
 ) => {
-  const { 
-    addMessage, 
-    addAgentBubble, 
-    addAgentBubbleSection, 
-    updateAgentBubbleSection, 
-    completeAgentBubble 
+  const {
+    addMessage,
+    addAgentBubble,
+    addAgentBubbleSection,
+    updateAgentBubbleSection,
+    completeAgentBubble
   } = useChatStore.getState();
 
   // Find existing Creative Strategy bubble or create a new one
@@ -114,7 +114,7 @@ export const handleCreativeStrategyEvent = (
         role: 'assistant',
         type: 'text',
         content: "Fantastic research! Now, let's get those creative juices flowing and brainstorm some ad concepts and compelling copy.",
-        icon: 'Bot'
+        icon: 'PopMintLogo'
       });
 
       // Create the Creative Strategy bubble
@@ -196,7 +196,7 @@ export const handleCreativeStrategyEvent = (
         role: 'assistant',
         type: 'text',
         content: `Ad copy is hot off the press! Here are a few different ideas we can work with:\n\n${data?.ideas ? JSON.stringify(data.ideas, null, 2) : 'Ad copy ideas generated successfully.'}`,
-        icon: 'Bot'
+        icon: 'PopMintLogo'
       });
     }
   }

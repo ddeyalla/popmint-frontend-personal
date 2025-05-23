@@ -17,10 +17,10 @@ export const findAgentBubble = (type: AgentBubbleType): { id: string, agentData:
  * Helper function to handle plan event
  */
 export const handlePlanEvent = (jobId: string, _data: any) => {
-  const { 
-    addTemporaryMessage, 
-    addAgentBubble, 
-    addAgentBubbleSection 
+  const {
+    addTemporaryMessage,
+    addAgentBubble,
+    addAgentBubbleSection
   } = useChatStore.getState();
 
   // First, add a temporary message that will disappear
@@ -64,16 +64,16 @@ export const handlePlanEvent = (jobId: string, _data: any) => {
  * Helper function to handle product analysis events
  */
 export const handleProductAnalysisEvent = (
-  jobId: string, 
-  eventType: 'started' | 'completed' | 'image_started' | 'image_completed', 
+  jobId: string,
+  eventType: 'started' | 'completed' | 'image_started' | 'image_completed',
   data: any
 ) => {
-  const { 
-    addMessage, 
-    addAgentBubble, 
-    addAgentBubbleSection, 
-    updateAgentBubbleSection, 
-    completeAgentBubble 
+  const {
+    addMessage,
+    addAgentBubble,
+    addAgentBubbleSection,
+    updateAgentBubbleSection,
+    completeAgentBubble
   } = useChatStore.getState();
 
   // Find existing Product Analysis bubble or create a new one
@@ -86,7 +86,7 @@ export const handleProductAnalysisEvent = (
         role: 'assistant',
         type: 'text',
         content: "First up, let's analyze that product page thoroughly.",
-        icon: 'Bot'
+        icon: 'PopMintLogo'
       });
 
       // Create the Product Analysis bubble
@@ -174,7 +174,7 @@ export const handleProductAnalysisEvent = (
         role: 'assistant',
         type: 'text',
         content: `Product page analysis complete! Here's a quick look:\n\n${data?.summary || 'Product details extracted successfully.'}`,
-        icon: 'Bot',
+        icon: 'PopMintLogo',
         imageUrls: data?.imageUrls || []
       });
     }

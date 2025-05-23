@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { 
-  Brain, 
-  Sparkles, 
-  Image as ImageIcon, 
-  Search, 
-  CircleCheck, 
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Brain,
+  Sparkles,
+  Image as ImageIcon,
+  Search,
+  CircleCheck,
   ChevronDown,
+  ChevronUp,
   Clock,
   Heart
 } from "lucide-react";
 import { Stage } from "@/lib/agent-state-mapper";
 import { cn } from "@/lib/utils";
+import { formatJsonData, cleanString, truncateText, isConceptData, extractConcepts } from '@/lib/format-utils';
 import { group } from "console";
 import { hover } from "framer-motion";
 
@@ -63,11 +65,11 @@ interface StepBubbleProps {
   duration?: string;
 }
 
-function StepBubble({ 
-  title, 
-  icon, 
-  gradient, 
-  isActive, 
+function StepBubble({
+  title,
+  icon,
+  gradient,
+  isActive,
   isCompleted,
   isExpanded,
   onToggle,
@@ -97,7 +99,7 @@ function StepBubble({
           )}
         </div>
         {children && (
-          <button 
+          <button
             onClick={onToggle}
             className="p-1 hover:bg-white/10 rounded-[10px] transition-colors"
           >
@@ -108,7 +110,7 @@ function StepBubble({
           </button>
         )}
       </div>
-      
+
       {children && isExpanded && (
         <div className="mt-4 space-y-3">
           {children}
@@ -163,11 +165,11 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
         </div>
         <span className="font-medium text-gray-900">Smart planning</span>
       </div>
-      
+
       <p className="text-gray-700 text-sm mb-4">
         Here's a plan I've prepared to create the ad
       </p>
-      
+
       <div className="space-y-2">
         <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
           <div className="flex items-center gap-2 mb-1">
@@ -178,7 +180,7 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
             Dive into the product page, real reviews, and top performing competitor ads
           </p>
         </div>
-        
+
         <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
           <div className="flex items-center gap-1 mb-1">
             <Sparkles className="w-4 h-4 text-purple-600" />
@@ -188,7 +190,7 @@ function SmartPlanningBubble({ isVisible }: { isVisible: boolean }) {
             Blend those insights with your brand voice to sketch 2–3 campaign angles
           </p>
         </div>
-        
+
         <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
           <div className="flex items-center gap-1 mb-1">
             <ImageIcon className="w-4 h-4 text-green-600" />
@@ -219,57 +221,156 @@ function ThinkingBubble({ isVisible }: { isVisible: boolean }) {
 
 function DataDisplay({ data, maxLength = 300 }: { data: any; maxLength?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+  const contentRef = useRef<HTMLDivElement>(null);
+
   if (!data) return null;
-  
-  // Better formatting for different data types
-  let content: string;
-  let isStructured = false;
-  
-  if (typeof data === 'string') {
-    content = data;
-  } else if (typeof data === 'object') {
-    isStructured = true;
-    // For structured data like scraped content, format it nicely
-    if (data.title || data.price || data.description) {
-      // Product data formatting
-      const parts = [];
-      if (data.title) parts.push(`Title: ${data.title}`);
-      if (data.price) parts.push(`Price: ${data.price}`);
-      if (data.description) parts.push(`Description: ${data.description}`);
-      if (data.features && Array.isArray(data.features) && data.features.length > 0) {
-        parts.push(`Features: ${data.features.join(', ')}`);
-      }
-      if (data.rating) parts.push(`Rating: ${data.rating}`);
-      if (data.review_count) parts.push(`Reviews: ${data.review_count}`);
-      content = parts.join('\n\n');
-    } else {
-      // Fallback to JSON
-      content = JSON.stringify(data, null, 2);
+
+  // Handle expanding content with smooth scroll
+  const handleExpandToggle = () => {
+    const newExpandedState = !isExpanded;
+    setIsExpanded(newExpandedState);
+
+    // If expanding, scroll to show the newly revealed content after a short delay
+    if (newExpandedState && contentRef.current) {
+      setTimeout(() => {
+        contentRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }, 100);
     }
-  } else {
-    content = String(data);
+  };
+
+  // Check if this is concept data
+  const concepts = extractConcepts(data);
+  const hasConcepts = concepts.length > 0;
+
+  // Format string data
+  let formattedStringData = '';
+  if (!hasConcepts && data) {
+    // Handle different data types appropriately
+    if (typeof data === 'string') {
+      try {
+        // Try to parse as JSON first
+        const parsedData = JSON.parse(data);
+        formattedStringData = formatJsonData(parsedData);
+      } catch (e) {
+        // Not valid JSON, just clean the string
+        formattedStringData = cleanString(data);
+      }
+    } else if (typeof data === 'object') {
+      formattedStringData = formatJsonData(data);
+    } else {
+      // For other types (number, boolean, etc.)
+      formattedStringData = String(data);
+    }
   }
-  
-  const isLong = content.length > maxLength;
-  const displayContent = isExpanded || !isLong ? content : content.substring(0, maxLength) + '...';
-  
+
+  // Truncate text for display
+  const truncatedData = formattedStringData.length > maxLength
+    ? truncateText(formattedStringData, maxLength)
+    : formattedStringData;
+
   return (
-    <div className="bg-white rounded-[10px] p-3 shadow-sm">
-      <div className={`text-xs text-gray-600 ${isStructured ? 'whitespace-pre-line' : 'whitespace-pre-wrap'} overflow-hidden ${isStructured ? '' : 'font-mono'}`}>
-        {displayContent}
-      </div>
-      {isLong && (
-        <button 
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="text-blue-600 text-xs mt-2 hover:underline flex items-center gap-1 transition-colors"
-        >
-          <ChevronDown className={cn(
-            "w-3 h-3 transition-transform",
-            isExpanded && "rotate-180"
-          )} />
-          {isExpanded ? 'Show less' : 'Show more'}
-        </button>
+    <div className="relative">
+      {hasConcepts ? (
+        // Display concepts in separate bubbles
+        <div className="space-y-4">
+          {concepts.map((concept, index) => (
+            <div key={index} className="bg-white/90 rounded-[10px] p-3 shadow-sm">
+              {/* Concept name/title */}
+              {concept.concept_name && (
+                <h3 className="font-medium text-sm mb-2 text-blue-600">{concept.concept_name}</h3>
+              )}
+
+              {/* Title */}
+              {concept.title && (
+                <h4 className="text-sm mb-2 font-semibold">{concept.title}</h4>
+              )}
+
+              {/* Headline */}
+              {concept.headline && (
+                <div className="text-sm mb-2 italic font-medium">{concept.headline}</div>
+              )}
+
+              {/* Body text with truncation */}
+              {concept.body_text && (
+                <div className="text-sm mb-2">
+                  <p className="font-medium text-xs text-gray-700 mb-1">Body Text:</p>
+                  <p>{concept.body_text.length > maxLength && !isExpanded
+                    ? truncateText(concept.body_text, maxLength)
+                    : concept.body_text}
+                  </p>
+
+                  {concept.body_text.length > maxLength && (
+                    <button
+                      onClick={handleExpandToggle}
+                      className="text-xs text-blue-500 mt-1 flex items-center"
+                    >
+                      {isExpanded ? 'Show less' : 'Show more'}
+                      {isExpanded ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Ad description with truncation */}
+              {concept.ad_description && (
+                <div className="text-sm mb-2 text-gray-600">
+                  <p className="font-medium text-xs text-gray-700 mb-1">Description:</p>
+                  <p>{concept.ad_description.length > maxLength && !isExpanded
+                    ? truncateText(concept.ad_description, maxLength)
+                    : concept.ad_description}
+                  </p>
+
+                  {concept.ad_description.length > maxLength && (
+                    <button
+                      onClick={handleExpandToggle}
+                      className="text-xs text-blue-500 mt-1 flex items-center"
+                    >
+                      {isExpanded ? 'Show less' : 'Show more'}
+                      {isExpanded ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* CTA */}
+              {concept.cta && (
+                <div className="text-sm text-blue-600 font-medium mt-2 p-1 bg-blue-50 rounded-md text-center">
+                  {concept.cta}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        // Display regular text/JSON data
+        formattedStringData && (
+          <>
+            <div
+              ref={contentRef}
+              className="bg-white rounded-[10px] p-3 shadow-sm"
+            >
+              <div className="text-xs text-gray-600 whitespace-pre-wrap overflow-hidden">
+                {isExpanded ? formattedStringData : truncatedData}
+              </div>
+            </div>
+
+            {formattedStringData.length > maxLength && (
+              <button
+                onClick={handleExpandToggle}
+                className="text-blue-600 text-xs mt-2 hover:underline flex items-center gap-1 transition-colors"
+              >
+                <ChevronDown className={cn(
+                  "w-3 h-3 transition-transform",
+                  isExpanded && "rotate-180"
+                )} />
+                {isExpanded ? 'Show less' : 'Show more'}
+              </button>
+            )}
+          </>
+        )
       )}
     </div>
   );
@@ -292,7 +393,7 @@ export function ModernAdGenerationFlow({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['research', 'creative', 'images'])
   );
-  
+
   const toggleExpanded = (section: string) => {
     const newExpanded = new Set(expandedSections);
     if (newExpanded.has(section)) {
@@ -317,7 +418,7 @@ export function ModernAdGenerationFlow({
     'research_started', 'research_done', 'concepts_started', 'concepts_done',
     'ideas_started', 'ideas_done', 'images_started', 'image_generation_progress', 'images_done', 'done'
   ];
-  
+
   const currentIndex = stages.indexOf(currentStage);
   const hasReached = (stage: string) => {
     const stageIndex = stages.indexOf(stage);
@@ -384,10 +485,10 @@ export function ModernAdGenerationFlow({
     <div className="flex flex-col gap-4 w-full max-w-md">
       {/* Thinking Bubble - only show at the very start */}
       <ThinkingBubble isVisible={!frontendStage || frontendStage === 'plan'} />
-      
+
       {/* Smart Planning - show once we have a plan */}
       <SmartPlanningBubble isVisible={hasReached('plan')} />
-      
+
       {/* Research Agent Bubble */}
       {hasReached('page_scrape_started') && (
         <StepBubble
@@ -436,19 +537,19 @@ export function ModernAdGenerationFlow({
               )}
             </NestedStep>
           )}
-          
+
           {/* Main Research Results - Prominent display when completed */}
           {isCompleted('research_done') && (scrapedContent || researchSummary) && (
             <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2 space-y-2">
               <div className="text-xs font-medium text-gray-700 mb-2">Research Summary</div>
-              
+
               {scrapedContent && (
                 <div>
                   <div className="text-xs font-medium text-purple-700 mb-1">Product Details</div>
                   <DataDisplay data={scrapedContent} maxLength={300} />
                 </div>
               )}
-              
+
               {researchSummary && (
                 <div>
                   <div className="text-xs font-medium text-purple-700 mb-1">Market Analysis</div>
@@ -457,7 +558,7 @@ export function ModernAdGenerationFlow({
               )}
             </div>
           )}
-          
+
           {/* Competitor Analysis Sub-step */}
           {hasReached('research_done') && (
             <NestedStep
@@ -547,13 +648,13 @@ export function ModernAdGenerationFlow({
             <p className="text-xs text-gray-600">
               Translating approved concepts into detailed prompts for visuals and copy
             </p>
-            
+
             {(frontendStage === 'images_started' || frontendStage === 'image_generation_progress') && (
               <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-xs text-gray-700">
-                    {currentImage && totalImages 
+                    {currentImage && totalImages
                       ? `Generating image ${currentImage} of ${totalImages}`
                       : 'Generating ads'
                     }
@@ -562,7 +663,7 @@ export function ModernAdGenerationFlow({
                 </div>
               </div>
             )}
-            
+
             {generatedImages && generatedImages.length > 0 && (
               <div className="group relative h-48 mt-2">
                 {generatedImages.map((img, index) => {
@@ -617,4 +718,4 @@ export function ModernAdGenerationFlow({
       )}
     </div>
   );
-} 
+}
