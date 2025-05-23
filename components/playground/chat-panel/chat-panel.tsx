@@ -144,9 +144,9 @@ export function ChatPanel() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-hidden mb-2 rounded-[10px]">
-        <ScrollArea className="h-full px-1 py-2">
-          <div className="flex flex-col gap-3">
+      <div className="flex-1 overflow-hidden rounded-[10px]">
+        <ScrollArea className="h-full px-1 py-2 overflow-x-visible">
+          <div className="flex flex-col gap-3 w-full overflow-x-visible">
             {messages.length === 0 ? (
               <div className="h-[calc(100%-80px)] flex flex-col items-center justify-center gap-4">
                 <div className="bg-gray-50 border border-gray-100 rounded-lg p-5 text-sm max-w-md space-y-4">

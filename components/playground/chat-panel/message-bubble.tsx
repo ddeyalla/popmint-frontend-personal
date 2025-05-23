@@ -19,7 +19,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   // Determine avatar based on message role
   const avatar = isUserMessage ? (
-    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+    <div className="w-6 h-6 rounded-[10px] bg-blue-500 flex items-center justify-center flex-shrink-0">
       <User className="h-4 w-4 text-white" />
     </div>
   ) : (
@@ -31,7 +31,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div
       className={cn(
-        "flex w-full",
+        "flex w-full overflow-x-visible",
         isUserMessage ? "justify-end" : "justify-start"
       )}
     >
@@ -47,9 +47,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {/* Message Content Area */}
         <div
           className={cn(
-            "rounded-lg px-3 py-2 text-[14px] shadow-sm",
+            "rounded-[10px] px-2 py-2 text-[14px] break-words",
             isUserMessage
-              ? "bg-blue-500 text-white rounded-br-none" // User message style
+              ? "bg-slate-100 text-slate-900 rounded-[10px]" // User message style
               : "bg-white text-slate-800 border border-slate-200 rounded-bl-none" // Agent message style
           )}
         >
@@ -60,7 +60,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           {imageUrls && imageUrls.length > 0 && (
             <div className={cn("mt-2", imageUrls.length > 1 ? "grid grid-cols-2 gap-2" : "")}>
               {imageUrls.map((url: string, index: number) => (
-                <div key={index} className="relative aspect-square max-w-[150px] max-h-[150px] overflow-hidden rounded-md">
+                <div key={index} className="relative aspect-square max-w-[150px] max-h-[150px] overflow-hidden rounded-[10px]">
                   <Image
                     src={url}
                     alt={`Attached image ${index + 1}`}
@@ -82,7 +82,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           <p
             className={cn(
               "text-xs mt-1.5",
-              isUserMessage ? "text-blue-100 opacity-80" : "text-slate-400"
+              isUserMessage ? "text-slate-500 opacity-80" : "text-slate-400"
             )}
           >
             {timestamp ? new Date(timestamp).toLocaleTimeString([], {
