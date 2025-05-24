@@ -2,12 +2,18 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 import { Project, ProjectCreate } from '@/types/project';
+import { apiCall, withRetry } from '@/lib/persistence-utils';
 
 interface ProjectState {
   projects: Project[];
   isLoading: boolean;
   error: string | null;
   lastFetched: number | null;
+
+  // Current project state for persistence
+  currentProjectId: string | null;
+  currentJobId: string | null;
+  isHydrating: boolean;
 
   // Actions
   fetchProjects: () => Promise<void>;
@@ -16,6 +22,13 @@ interface ProjectState {
   updateProject: (id: string, updates: Partial<Project>) => Promise<Project | null>;
   deleteProject: (id: string) => Promise<boolean>;
   clearError: () => void;
+
+  // New persistence actions
+  createProjectFromPrompt: (prompt: string) => Promise<string | null>;
+  linkJobToProject: (projectId: string, jobId: string) => Promise<boolean>;
+  setCurrentProject: (projectId: string) => void;
+  setCurrentJob: (jobId: string) => void;
+  hydrateProject: (projectId: string) => Promise<boolean>;
 }
 
 // For demo purposes, we'll use a default user ID
@@ -30,6 +43,9 @@ export const useProjectStore = create<ProjectState>()(
       isLoading: false,
       error: null,
       lastFetched: null,
+      currentProjectId: null,
+      currentJobId: null,
+      isHydrating: false,
 
       fetchProjects: async () => {
         console.log('[ProjectStore] Fetching projects...');
@@ -195,11 +211,134 @@ export const useProjectStore = create<ProjectState>()(
 
       clearError: () => {
         set({ error: null });
-      }
+      },
+
+      // New persistence methods
+      createProjectFromPrompt: async (prompt: string) => {
+        console.log('[ProjectStore] Creating project from prompt:', prompt);
+        set({ isLoading: true, error: null });
+
+        try {
+          // Extract project name from prompt (first 3 words)
+          const words = prompt.trim().split(/\s+/);
+          const projectName = words.slice(0, 3).join(' ') || 'Untitled Project';
+
+          // Create project via API
+          const response = await apiCall<{ project_id: string; project: Project }>('/api/projects', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: projectName,
+              description: prompt,
+              thumbnail_url: '',
+            }),
+          });
+
+          // Update local state
+          set((state) => ({
+            projects: [response.project, ...state.projects],
+            currentProjectId: response.project_id,
+            isLoading: false,
+          }));
+
+          console.log('[ProjectStore] Project created successfully:', response.project_id);
+          return response.project_id;
+
+        } catch (error) {
+          console.error('[ProjectStore] Error creating project from prompt:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to create project',
+            isLoading: false,
+          });
+          return null;
+        }
+      },
+
+      linkJobToProject: async (projectId: string, jobId: string) => {
+        console.log('[ProjectStore] Linking job to project:', { projectId, jobId });
+
+        try {
+          await apiCall(`/api/projects/${projectId}/link-job`, {
+            method: 'POST',
+            body: JSON.stringify({ job_id: jobId }),
+          });
+
+          set({ currentJobId: jobId });
+          console.log('[ProjectStore] Job linked successfully');
+          return true;
+
+        } catch (error) {
+          console.error('[ProjectStore] Error linking job to project:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to link job to project',
+          });
+          return false;
+        }
+      },
+
+      setCurrentProject: (projectId: string) => {
+        console.log('[ProjectStore] Setting current project:', projectId);
+        set({ currentProjectId: projectId });
+      },
+
+      setCurrentJob: (jobId: string) => {
+        console.log('[ProjectStore] Setting current job:', jobId);
+        set({ currentJobId: jobId });
+      },
+
+      hydrateProject: async (projectId: string) => {
+        console.log('[ProjectStore] Hydrating project:', projectId);
+        set({ isHydrating: true, error: null });
+
+        try {
+          // Get or create the project by session ID
+          console.log('[ProjectStore] Getting project for sessionId:', projectId);
+          let actualProjectId = projectId;
+
+          try {
+            const response = await apiCall(`/api/projects/by-session/${projectId}`);
+
+            // Get the actual project ID from the response
+            actualProjectId = response.project_id;
+            console.log('[ProjectStore] Project found/created, actual ID:', actualProjectId);
+          } catch (getError) {
+            console.error('[ProjectStore] Failed to get/create project:', getError);
+            // Continue anyway - we'll try to initialize persistence with sessionId
+          }
+
+          // Initialize persistence for this project using the actual project ID
+          const { initializePersistence } = await import('@/lib/persistence-manager');
+          const success = await initializePersistence(actualProjectId);
+
+          if (!success) {
+            console.warn('[ProjectStore] Persistence initialization failed, but continuing');
+            // Don't throw error - allow the app to continue without persistence
+          }
+
+          set({
+            currentProjectId: actualProjectId,
+            isHydrating: false,
+          });
+
+          console.log('[ProjectStore] Project hydrated successfully');
+          return true;
+
+        } catch (error) {
+          console.error('[ProjectStore] Error hydrating project:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to hydrate project',
+            isHydrating: false,
+          });
+          return false;
+        }
+      },
     }),
     {
       name: 'popmint-projects-storage', // unique name for localStorage
-      partialize: (state) => ({ projects: state.projects }), // only persist projects array
+      partialize: (state) => ({
+        projects: state.projects,
+        currentProjectId: state.currentProjectId,
+        currentJobId: state.currentJobId,
+      }),
     }
   )
 );

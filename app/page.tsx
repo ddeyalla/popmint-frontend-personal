@@ -9,6 +9,7 @@ import { generateImageFromPrompt } from '@/lib/generate-image'
 import { Textarea } from "@/components/ui/textarea"
 import { useAutoResizeTextarea } from "@/components/hooks/use-auto-resize-textarea"
 import { ProjectSection } from "@/components/home/project-section"
+import { useProjectStore } from "@/store/projectStore"
 
 // RegEx for detecting URLs in text
 const URL_REGEX = /(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi;
@@ -86,6 +87,7 @@ const highlightUrls = (text: string): string => {
 
 export default function Home() {
   const router = useRouter()
+  const { createProjectFromPrompt, linkJobToProject } = useProjectStore()
   const [inputValue, setInputValue] = useState("")
   const [hasValidUrl, setHasValidUrl] = useState(false)
   const [uploadedImages, setUploadedImages] = useState<ImageData[]>([])
@@ -283,36 +285,19 @@ export default function Home() {
     setIsSubmitting(true);
 
     try {
-      // Generate a session ID for the playground
-      const sessionId = Math.random().toString(36).substring(2, 9);
+      console.log("[HomePage] Starting project creation with persistence...");
 
-      // Generate a project name based on input - ONLY use the first 3 words
-      let projectName = "Untitled Project";
-      if (inputValue.trim()) {
-        // For URLs, use a different approach to get meaningful words
-        const urlMatch = inputValue.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
-        if (urlMatch && urlMatch.length > 0) {
-          // Extract domain name from URL
-          try {
-            const url = new URL(urlMatch[0].startsWith('http') ? urlMatch[0] : 'https://' + urlMatch[0]);
-            const domain = url.hostname.replace('www.', '').split('.')[0];
-            // Use domain name as first word, then add two more words if available
-            const otherWords = inputValue.replace(urlMatch[0], '').trim().split(/\s+/).filter(word => word.length > 0);
-            const nameWords = [domain, ...(otherWords.slice(0, 2))].filter(Boolean);
-            projectName = nameWords.join(' ');
-          } catch (e) {
-            // Fallback to standard word extraction if URL parsing fails
-            const words = inputValue.trim().split(/\s+/).filter(word => word.length > 0);
-            projectName = words.slice(0, 3).join(" ");
-          }
-        } else {
-          // Standard approach for non-URL text
-          const words = inputValue.trim().split(/\s+/).filter(word => word.length > 0);
-          projectName = words.slice(0, 3).join(" ");
-        }
+      // Create the full prompt for the project
+      const fullPrompt = inputValue.trim();
 
-        console.log("[HomePage] Project name set to:", projectName);
+      // Create project using the new persistence system
+      const projectId = await createProjectFromPrompt(fullPrompt);
+
+      if (!projectId) {
+        throw new Error('Failed to create project');
       }
+
+      console.log("[HomePage] Project created successfully:", projectId);
 
       // Get image URLs from uploaded images
       const userUploadedImageUrls = uploadedImages.map(img => img.previewUrl);
@@ -324,32 +309,13 @@ export default function Home() {
         imageUrls: userUploadedImageUrls
       };
 
-      // First, clear any legacy items to prevent conflicts
-      // Use a synchronous approach to ensure all items are cleared before setting new ones
-      const itemsToRemove = [
-        "popmint-prompt",
-        "popmint-images",
-        "popmint-process-image",
-        "popmint-generate-ad",
-        "popmint-product-url",
-        "popmint-initial-message",
-        "popmint-prompt-to-process"
-      ];
-
-      for (const item of itemsToRemove) {
-        localStorage.removeItem(item);
-      }
-
-      console.log("[HomePage] Cleared all localStorage items");
-
       // Check if input contains a product URL - if it does, mark it for ad generation
-      // Use a more reliable URL detection approach
       const urlMatch = inputValue.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
       const containsUrl = Boolean(urlMatch && urlMatch.length > 0);
       console.log("[HomePage] URL detected:", containsUrl, urlMatch);
 
-      // Store all required data in localStorage
-      localStorage.setItem("popmint-project-name", projectName);
+      // Store data in localStorage for the playground to pick up
+      // This maintains compatibility with existing playground logic
       localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
       console.log("[HomePage] Set initial message in localStorage");
 
@@ -379,45 +345,9 @@ export default function Home() {
         console.log("[HomePage] Regular chat input detected");
       }
 
-      // Ensure localStorage is properly set before navigation
-      console.log("[HomePage] localStorage items set, preparing to navigate to playground");
-
-      // Force a small delay to ensure localStorage operations complete
-      // This helps prevent race conditions in some browsers
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Double-check that our flags are set correctly
-      const adFlagSet = localStorage.getItem("popmint-generate-ad") === "true";
-      const urlSet = Boolean(localStorage.getItem("popmint-product-url"));
-      const processImageSet = localStorage.getItem("popmint-process-image") === "true";
-      const promptSet = Boolean(localStorage.getItem("popmint-prompt-to-process"));
-
-      console.log("[HomePage] Final localStorage check:", {
-        "Ad flag": adFlagSet,
-        "URL set": urlSet,
-        "Process image": processImageSet,
-        "Prompt set": promptSet,
-        "Project name": localStorage.getItem("popmint-project-name")
-      });
-
-      // If URL was detected but flags aren't set, try setting them again
-      if (containsUrl && (!adFlagSet || !urlSet)) {
-        console.log("[HomePage] URL detected but flags not set properly, fixing...");
-        if (urlMatch && urlMatch.length > 0) {
-          let productUrl = urlMatch[0];
-          if (!productUrl.startsWith('http')) {
-            productUrl = 'https://' + productUrl;
-          }
-          localStorage.setItem("popmint-generate-ad", "true");
-          localStorage.setItem("popmint-product-url", productUrl);
-          localStorage.setItem("popmint-process-image", "true");
-          localStorage.setItem("popmint-prompt-to-process", inputValue.trim());
-        }
-      }
-
-      // Navigate to the playground
-      console.log("[HomePage] Navigating to playground:", sessionId);
-      router.push(`/playground/${sessionId}`);
+      // Navigate to the playground using the project ID
+      console.log("[HomePage] Navigating to playground with project:", projectId);
+      router.push(`/playground/${projectId}`);
 
     } catch (error) {
       console.error("[HomePage] Error in handleSubmit:", error);
@@ -521,7 +451,7 @@ export default function Home() {
     <div className="min-h-screen w-full flex flex-col relative overflow-hidden">
       {/* Fixed gradient background */}
       <div className="fixed inset-0 bg-gradient-to-tr from-sky-300 via-purple-200 via-70% to-yellow-100 -z-10"></div>
-      
+
       {/* Noise texture overlay - also fixed */}
       <div className="pointer-events-none fixed inset-0 z-10 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
 
@@ -677,10 +607,10 @@ export default function Home() {
             </div>
           </div>
         </main>
-        {/* Project Section */}     
+        {/* Project Section */}
         <div className="mt-20">
         <ProjectSection />
-        </div>  
+        </div>
       </div>
     </div>
   )

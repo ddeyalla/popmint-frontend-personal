@@ -6,6 +6,7 @@ import { CanvasArea } from "@/components/playground/canvas/canvas-area";
 import { useChatStore } from "@/store/chatStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useProjectStore } from "@/store/projectStore";
 import { CollapsedOverlay } from "@/components/playground/collapsed-overlay";
 import { cn } from "@/lib/utils";
 import { generateAdsFromProductUrl } from "@/lib/generate-ad";
@@ -17,14 +18,42 @@ interface ClientSidePlaygroundProps {
 
 export default function ClientSidePlayground({ sessionId }: ClientSidePlaygroundProps) {
   const { addMessage, startAdGeneration } = useChatStore();
+  const { hydrateProject, createProjectFromPrompt, currentProjectId, linkJobToProject } = useProjectStore();
   // We use useSessionStore.getState() directly when needed
   const isInitialized = useRef(false);
   const isSidebarCollapsed = useCanvasStore((state) => state.isSidebarCollapsed);
   const [isUILoading, setIsUILoading] = useState(true);
+  const [isPersistenceReady, setIsPersistenceReady] = useState(false);
   const canvasAreaWrapperRef = useRef<HTMLDivElement>(null);
 
   // Use our new SSE handler
   const { connectToSSE, disconnectSSE } = useProductPageSSE();
+
+  // Initialize persistence for this session/project
+  useEffect(() => {
+    const initializePersistence = async () => {
+      try {
+        console.log('[Playground] Initializing persistence for sessionId:', sessionId);
+
+        // For now, treat sessionId as projectId
+        // In the future, we'll create projects from prompts
+        const success = await hydrateProject(sessionId);
+
+        if (success) {
+          console.log('[Playground] Persistence initialized successfully');
+          setIsPersistenceReady(true);
+        } else {
+          console.warn('[Playground] Persistence initialization failed, continuing without persistence');
+          setIsPersistenceReady(false);
+        }
+      } catch (error) {
+        console.error('[Playground] Error initializing persistence:', error);
+        setIsPersistenceReady(false);
+      }
+    };
+
+    initializePersistence();
+  }, [sessionId, hydrateProject]);
 
   // Precompute styles only when isSidebarCollapsed changes
   const canvasStyles = useMemo(() => {
@@ -97,7 +126,19 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
         const serverJobId = await generateAdsFromProductUrl(clientJobId, productUrl);
         console.log("[Playground] Received server job ID:", serverJobId);
 
-        // Map the server job ID to the current project name
+        // Link the job to the current project for persistence
+        if (currentProjectId) {
+          console.log(`[Playground] Linking job ${serverJobId} to project ${currentProjectId}`);
+          try {
+            await linkJobToProject(currentProjectId, serverJobId);
+            console.log(`[Playground] Successfully linked job to project`);
+          } catch (linkError) {
+            console.error(`[Playground] Failed to link job to project:`, linkError);
+            // Continue anyway - this is not critical for functionality
+          }
+        }
+
+        // Map the server job ID to the current project name (legacy support)
         const currentProjectName = useSessionStore.getState().projectName;
         console.log(`[Playground] Mapping server job ID ${serverJobId} to project "${currentProjectName}"`);
 

@@ -32,11 +32,12 @@ type CanvasState = {
   setStageOffset: (offset: { x: number; y: number }) => void
   updateStageOffset: (delta: { x: number; y: number }) => void
   toggleSidebar: () => void
-  addObject: (object: Omit<KonvaObject, "id">) => void
+  addObject: (object: Omit<KonvaObject, "id"> & { id?: string }) => void
   addImage: (src: string, x?: number, y?: number, isGeneratedImage?: boolean) => void
   addText: (text: string, x?: number, y?: number) => void
   updateObject: (id: string, updates: Partial<KonvaObject>) => void
   deleteObject: (ids: string | string[]) => void
+  setObjects: (objects: KonvaObject[]) => void
   selectObject: (ids: string[] | null) => void
   selectAllObjects: () => void
   clearSelection: () => void
@@ -85,7 +86,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     try {
       const newObject = {
         ...object,
-        id: Math.random().toString(36).substring(2, 9),
+        id: object.id || `local-${Math.random().toString(36).substring(2, 9)}`,
         draggable: true,
       }
       set((state) => {
@@ -352,6 +353,20 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     } catch (error) {
       console.error("Error duplicating object:", error);
       return null;
+    }
+  },
+
+  setObjects: (objects) => {
+    try {
+      console.log('[CanvasStore] Setting objects:', objects.length);
+      set((state) => ({
+        objects,
+        history: [...state.history.slice(0, state.historyStep + 1), [...objects]],
+        historyStep: state.historyStep + 1,
+        selectedObjectIds: [], // Clear selection when setting new objects
+      }));
+    } catch (error) {
+      console.error("Error setting objects:", error);
     }
   },
 }))

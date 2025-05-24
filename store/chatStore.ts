@@ -123,10 +123,11 @@ interface ChatState {
   currentJob: AdGenerationData | null;
 
   // Actions
-  addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => string;
+  addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'> & { id?: string; timestamp?: Date }) => string;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   clearMessages: () => void;
   removeMessage: (id: string) => void;
+  setMessages: (messages: ChatMessage[]) => void;
 
   // Ad generation specific actions
   startAdGeneration: (jobId: string, userMessage: string) => void;
@@ -154,11 +155,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentJob: null,
 
   addMessage: (message) => {
-    const id = uuidv4();
+    // Generate local ID for new messages, or use provided ID for hydrated messages
+    const id = message.id || `local-${uuidv4()}`;
     const newMessage: ChatMessage = {
       ...message,
       id,
-      timestamp: new Date(),
+      timestamp: message.timestamp || new Date(),
     };
 
     set((state) => ({
@@ -184,6 +186,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       messages: state.messages.filter(msg => msg.id !== id)
     }));
+  },
+
+  setMessages: (messages) => {
+    console.log('[ChatStore] Setting messages:', messages.length);
+    set({ messages });
   },
 
   startAdGeneration: (jobId, userMessage) => {
