@@ -21,6 +21,7 @@ const config = {
     extend: {
       fontFamily: {
         sora: ['var(--font-sora)'],
+
       },
       colors: {
         border: "hsl(var(--border))",

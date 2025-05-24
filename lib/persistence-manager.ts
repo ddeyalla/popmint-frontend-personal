@@ -3,15 +3,15 @@
 import { useProjectStore } from '@/store/projectStore';
 import { useChatStore } from '@/store/chatStore';
 import { useCanvasStore } from '@/store/canvasStore';
-import { 
-  createChatPersistenceMiddleware, 
+import {
+  createChatPersistenceMiddleware,
   hydrateChatStore,
-  type ChatPersistenceConfig 
+  type ChatPersistenceConfig
 } from '@/lib/chat-persistence';
-import { 
-  createCanvasPersistenceMiddleware, 
+import {
+  createCanvasPersistenceMiddleware,
   hydrateCanvasStore,
-  type CanvasPersistenceConfig 
+  type CanvasPersistenceConfig
 } from '@/lib/canvas-persistence';
 
 export interface PersistenceManagerConfig {
@@ -63,33 +63,61 @@ export class PersistenceManager {
     }
 
     try {
-      console.log('[PersistenceManager] Initializing for project:', this.config.projectId);
+      console.log('[PersistenceManager] 🚀 Starting initialization for project:', this.config.projectId);
 
       // Set current project in project store
       useProjectStore.getState().setCurrentProject(this.config.projectId);
 
-      // Hydrate stores with data from server
+      // CRITICAL FIX: Initialize middleware BEFORE hydrating stores
+      // This ensures the middleware is ready to handle any store changes during hydration
+      console.log('[PersistenceManager] 🔧 Initializing middleware before hydration...');
+      this.chatMiddleware.initialize();
+      this.canvasMiddleware.initialize();
+
+      // Add a small delay to ensure middleware subscriptions are active
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Now hydrate stores with data from server
+      console.log('[PersistenceManager] 💾 Starting store hydration...');
       const [chatSuccess, canvasSuccess] = await Promise.all([
         this.hydrateChatStore(),
         this.hydrateCanvasStore(),
       ]);
 
-      if (!chatSuccess || !canvasSuccess) {
-        console.error('[PersistenceManager] Failed to hydrate stores');
-        return false;
+      if (!chatSuccess) {
+        console.error('[PersistenceManager] ❌ Failed to hydrate chat store');
+        // Don't fail completely - allow app to continue without chat persistence
+      } else {
+        console.log('[PersistenceManager] ✅ Chat store hydrated successfully');
       }
 
-      // Initialize middleware
-      this.chatMiddleware.initialize();
-      this.canvasMiddleware.initialize();
+      if (!canvasSuccess) {
+        console.error('[PersistenceManager] ❌ Failed to hydrate canvas store');
+        // Don't fail completely - allow app to continue without canvas persistence
+      } else {
+        console.log('[PersistenceManager] ✅ Canvas store hydrated successfully');
+      }
 
       this.isInitialized = true;
-      console.log('[PersistenceManager] Initialized successfully');
+      console.log('[PersistenceManager] 🎉 Initialization completed successfully');
+
+      // Return true even if some hydration failed - app should still work
       return true;
 
     } catch (error) {
-      console.error('[PersistenceManager] Error during initialization:', error);
-      return false;
+      console.error('[PersistenceManager] 💥 Error during initialization:', error);
+
+      // Try to initialize middleware even if hydration failed
+      try {
+        this.chatMiddleware.initialize();
+        this.canvasMiddleware.initialize();
+        this.isInitialized = true;
+        console.log('[PersistenceManager] 🔄 Middleware initialized despite hydration failure');
+        return true;
+      } catch (middlewareError) {
+        console.error('[PersistenceManager] 💥 Failed to initialize middleware:', middlewareError);
+        return false;
+      }
     }
   }
 
@@ -169,6 +197,53 @@ export class PersistenceManager {
       projectId: this.config.projectId,
     };
   }
+
+  /**
+   * Debug function to check persistence system health
+   */
+  async debugPersistenceHealth(): Promise<void> {
+    console.log('[PersistenceManager] 🔍 PERSISTENCE HEALTH CHECK');
+    console.log('[PersistenceManager] 📊 Status:', this.getStatus());
+
+    // Check chat store state
+    const chatStore = useChatStore.getState();
+    console.log('[PersistenceManager] 💬 Chat Store:', {
+      messageCount: chatStore.messages?.length || 0,
+      messages: chatStore.messages?.map(m => ({
+        id: m.id,
+        role: m.role,
+        type: m.type,
+        isTemporary: m.isTemporary,
+        contentLength: m.content?.length || 0,
+      })) || [],
+    });
+
+    // Check canvas store state
+    const canvasStore = useCanvasStore.getState();
+    console.log('[PersistenceManager] 🎨 Canvas Store:', {
+      objectCount: canvasStore.objects?.length || 0,
+      objects: canvasStore.objects?.map(o => ({
+        id: o.id,
+        type: o.type,
+        x: o.x,
+        y: o.y,
+      })) || [],
+    });
+
+    // Test API connectivity
+    if (this.config.projectId) {
+      try {
+        console.log('[PersistenceManager] 🌐 Testing API connectivity...');
+        const response = await fetch(`/api/projects/${this.config.projectId}/chat`);
+        console.log('[PersistenceManager] 🌐 Chat API response:', response.status, response.statusText);
+
+        const canvasResponse = await fetch(`/api/projects/${this.config.projectId}/canvas`);
+        console.log('[PersistenceManager] 🌐 Canvas API response:', canvasResponse.status, canvasResponse.statusText);
+      } catch (error) {
+        console.error('[PersistenceManager] 🌐 API connectivity test failed:', error);
+      }
+    }
+  }
 }
 
 // Global persistence manager instance
@@ -222,7 +297,7 @@ export function disablePersistence() {
  */
 export function usePersistence(projectId?: string) {
   const manager = globalPersistenceManager;
-  
+
   return {
     manager,
     isInitialized: manager?.getStatus().isInitialized || false,

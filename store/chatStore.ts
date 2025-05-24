@@ -163,9 +163,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       timestamp: message.timestamp || new Date(),
     };
 
-    set((state) => ({
-      messages: [...state.messages, newMessage]
-    }));
+    console.log('[ChatStore] 🚀 Adding message:', id, newMessage.role, newMessage.type);
+    set((state) => {
+      console.log('[ChatStore] 📊 Current messages count:', state.messages.length);
+      console.log('[ChatStore] 📊 New messages count:', state.messages.length + 1);
+      return {
+        messages: [...state.messages, newMessage]
+      };
+    });
 
     return id;
   },

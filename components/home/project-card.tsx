@@ -23,8 +23,9 @@ export function ProjectCard({ project, isCreateCard = false, onClick, isLoading 
       return;
     }
 
-    if (project?.session_id) {
-      router.push(`/playground/${project.session_id}`);
+    if (project?.id) {
+      // Use project ID for navigation instead of session_id
+      router.push(`/playground/${project.id}`);
     }
   };
 

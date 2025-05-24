@@ -77,7 +77,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    console.log('[API] Creating chat message for project:', projectId, { role, message_type });
+    console.log('[API] 🔍 DEBUG: Creating chat message for project:', projectId, {
+      role,
+      message_type,
+      content_length: content.length,
+      image_urls_count: image_urls.length,
+    });
 
     // First verify the project exists and belongs to the user
     const { data: project, error: projectError } = await supabase
@@ -88,12 +93,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (projectError || !project) {
-      console.error('[API] Project not found:', projectError);
+      console.error('[API] 💥 Project not found:', {
+        projectId,
+        error: projectError,
+      });
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
       );
     }
+
+    console.log('[API] ✅ Project verified:', project.id);
 
     // Create the chat message
     const messageData = {
@@ -104,6 +114,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       message_type,
     };
 
+    console.log('[API] 🔍 DEBUG: Inserting message data:', {
+      project_id: messageData.project_id,
+      role: messageData.role,
+      message_type: messageData.message_type,
+      content_length: messageData.content.length,
+    });
+
     const { data, error } = await supabase
       .from('chat_messages')
       .insert([messageData])
@@ -111,14 +128,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('[API] Supabase error creating chat message:', error);
+      console.error('[API] 💥 Supabase error creating chat message:', {
+        projectId,
+        error,
+        messageData: {
+          ...messageData,
+          content: `${messageData.content.substring(0, 100)}...`,
+        },
+      });
       return NextResponse.json(
         { error: 'Failed to create chat message' },
         { status: 500 }
       );
     }
 
-    console.log('[API] Chat message created successfully:', data.id);
+    console.log('[API] ✅ Chat message created successfully:', {
+      id: data.id,
+      project_id: data.project_id,
+      role: data.role,
+      message_type: data.message_type,
+    });
     return NextResponse.json({ message: data });
 
   } catch (error) {

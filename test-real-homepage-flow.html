@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Real Homepage Flow</title>
+</head>
+<body>
+    <h1>Test Real Homepage Flow</h1>
+    <p>Testing with URL: <strong>https://thewholetruthfoods.com/products/badaam-chocolates?sku_id=38763083</strong></p>
+    
+    <button onclick="testRealHomepageFlow()">Test Real Homepage Flow</button>
+    <button onclick="checkLocalStorage()">Check localStorage</button>
+    <button onclick="clearLocalStorage()">Clear localStorage</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        async function testRealHomepageFlow() {
+            log('🧪 Testing real homepage flow...');
+            
+            try {
+                // Clear existing localStorage
+                localStorage.clear();
+                log('✅ Cleared localStorage');
+                
+                // Use the real URL you provided
+                const realUrl = 'https://thewholetruthfoods.com/products/badaam-chocolates?sku_id=38763083';
+                
+                // Step 1: Create a project (like homepage does)
+                log('📍 Step 1: Creating project via API...');
+                
+                const projectResponse = await fetch('http://localhost:3001/api/projects', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: 'Badaam Chocolates Project',
+                        description: realUrl,
+                        thumbnail_url: '',
+                        user_id: 'default-user'
+                    })
+                });
+                
+                if (!projectResponse.ok) {
+                    throw new Error(`Failed to create project: ${projectResponse.status}`);
+                }
+                
+                const project = await projectResponse.json();
+                log('✅ Project created: ' + project.project_id);
+                
+                // Step 2: Set localStorage values exactly like homepage does
+                const initialMessage = {
+                    type: 'userInput',
+                    content: realUrl,
+                    imageUrls: []
+                };
+                
+                localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessage));
+                localStorage.setItem("popmint-generate-ad", "true");
+                localStorage.setItem("popmint-product-url", realUrl);
+                localStorage.setItem("popmint-process-image", "true");
+                localStorage.setItem("popmint-prompt-to-process", realUrl);
+                
+                log('✅ Set localStorage values');
+                log('  - popmint-initial-message: ' + localStorage.getItem("popmint-initial-message"));
+                log('  - popmint-generate-ad: ' + localStorage.getItem("popmint-generate-ad"));
+                log('  - popmint-product-url: ' + localStorage.getItem("popmint-product-url"));
+                log('  - popmint-process-image: ' + localStorage.getItem("popmint-process-image"));
+                log('  - popmint-prompt-to-process: ' + localStorage.getItem("popmint-prompt-to-process"));
+                
+                // Step 3: Navigate to playground with the project ID
+                const playgroundUrl = 'http://localhost:3001/playground/' + project.project_id;
+                log('🚀 Navigating to: ' + playgroundUrl);
+                
+                // Navigate in same window to preserve localStorage
+                window.location.href = playgroundUrl;
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+        
+        function checkLocalStorage() {
+            log('📍 Current localStorage:');
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                log('  - ' + key + ': ' + value);
+            }
+        }
+        
+        function clearLocalStorage() {
+            localStorage.clear();
+            log('✅ Cleared localStorage');
+        }
+    </script>
+</body>
+</html>

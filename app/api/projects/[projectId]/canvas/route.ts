@@ -77,7 +77,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    console.log('[API] Creating canvas object for project:', projectId, { type, x, y });
+    console.log('[API] 🔍 DEBUG: Creating canvas object for project:', projectId, {
+      type,
+      x,
+      y,
+      width,
+      height,
+      rotation,
+      src: src ? 'present' : 'none',
+      props_keys: Object.keys(props),
+    });
 
     // First verify the project exists and belongs to the user
     const { data: project, error: projectError } = await supabase
@@ -88,12 +97,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (projectError || !project) {
-      console.error('[API] Project not found:', projectError);
+      console.error('[API] 💥 Project not found:', {
+        projectId,
+        error: projectError,
+      });
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
       );
     }
+
+    console.log('[API] ✅ Project verified:', project.id);
 
     // Create the canvas object
     const objectData = {
@@ -108,6 +122,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       props,
     };
 
+    console.log('[API] 🔍 DEBUG: Inserting object data:', {
+      project_id: objectData.project_id,
+      type: objectData.type,
+      x: objectData.x,
+      y: objectData.y,
+      width: objectData.width,
+      height: objectData.height,
+    });
+
     const { data, error } = await supabase
       .from('canvas_objects')
       .insert([objectData])
@@ -115,14 +138,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('[API] Supabase error creating canvas object:', error);
+      console.error('[API] 💥 Supabase error creating canvas object:', {
+        projectId,
+        error,
+        objectData: {
+          ...objectData,
+          props: Object.keys(objectData.props || {}),
+        },
+      });
       return NextResponse.json(
         { error: 'Failed to create canvas object' },
         { status: 500 }
       );
     }
 
-    console.log('[API] Canvas object created successfully:', data.id);
+    console.log('[API] ✅ Canvas object created successfully:', {
+      id: data.id,
+      project_id: data.project_id,
+      type: data.type,
+      x: data.x,
+      y: data.y,
+    });
     return NextResponse.json({ object: data });
 
   } catch (error) {

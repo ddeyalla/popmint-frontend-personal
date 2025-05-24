@@ -13,10 +13,12 @@ import { generateAdsFromProductUrl } from "@/lib/generate-ad";
 import { useProductPageSSE } from "@/components/playground/chat-panel/sse/product-page-handler";
 
 interface ClientSidePlaygroundProps {
-  sessionId: string;
+  projectId: string;
 }
 
-export default function ClientSidePlayground({ sessionId }: ClientSidePlaygroundProps) {
+export default function ClientSidePlayground({ projectId }: ClientSidePlaygroundProps) {
+  console.log("[PlaygroundClient] 🚀 Component mounting with projectId:", projectId);
+
   const { addMessage, startAdGeneration } = useChatStore();
   const { hydrateProject, createProjectFromPrompt, currentProjectId, linkJobToProject } = useProjectStore();
   // We use useSessionStore.getState() directly when needed
@@ -29,31 +31,86 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
   // Use our new SSE handler
   const { connectToSSE, disconnectSSE } = useProductPageSSE();
 
-  // Initialize persistence for this session/project
+  // Test persistence function for debugging
+  const testPersistence = async () => {
+    try {
+      console.log('[Playground] 🧪 Testing persistence manually...');
+
+      // First, run a health check
+      const { getPersistenceManager } = await import('@/lib/persistence-manager');
+      const manager = getPersistenceManager();
+      if (manager) {
+        await manager.debugPersistenceHealth();
+      }
+
+      // Test chat message persistence
+      const chatStore = useChatStore.getState();
+      const messages = chatStore.messages;
+      if (messages.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        console.log('[Playground] Testing chat persistence with message:', lastMessage.id);
+
+        const { saveChatMessage } = await import('@/lib/chat-persistence');
+        const savedMessage = await saveChatMessage(projectId, lastMessage);
+        console.log('[Playground] Chat persistence test result:', savedMessage ? 'SUCCESS' : 'FAILED');
+      } else {
+        console.log('[Playground] No chat messages to test persistence with');
+      }
+
+      // Test canvas object persistence
+      const canvasStore = useCanvasStore.getState();
+      const objects = canvasStore.objects;
+      if (objects.length > 0) {
+        const lastObject = objects[objects.length - 1];
+        console.log('[Playground] Testing canvas persistence with object:', lastObject.id);
+
+        const { saveCanvasObject } = await import('@/lib/canvas-persistence');
+        const savedObject = await saveCanvasObject(projectId, lastObject);
+        console.log('[Playground] Canvas persistence test result:', savedObject ? 'SUCCESS' : 'FAILED');
+      } else {
+        console.log('[Playground] No canvas objects to test persistence with');
+      }
+    } catch (error) {
+      console.error('[Playground] Persistence test error:', error);
+    }
+  };
+
+  // Initialize persistence for this project - CRITICAL: This must complete before any data operations
   useEffect(() => {
     const initializePersistence = async () => {
       try {
-        console.log('[Playground] Initializing persistence for sessionId:', sessionId);
+        console.log('[Playground] 🚀 PERSISTENCE-FIRST: Starting initialization for projectId:', projectId);
 
-        // For now, treat sessionId as projectId
-        // In the future, we'll create projects from prompts
-        const success = await hydrateProject(sessionId);
+        // Reset persistence ready state
+        setIsPersistenceReady(false);
+
+        // STEP 1: Hydrate the project and ensure persistence is ready
+        console.log('[Playground] 🔧 PERSISTENCE-FIRST: Calling hydrateProject...');
+        const success = await hydrateProject(projectId);
 
         if (success) {
-          console.log('[Playground] Persistence initialized successfully');
+          console.log('[Playground] ✅ PERSISTENCE-FIRST: Persistence initialized successfully');
           setIsPersistenceReady(true);
         } else {
-          console.warn('[Playground] Persistence initialization failed, continuing without persistence');
-          setIsPersistenceReady(false);
+          console.warn('[Playground] ⚠️ PERSISTENCE-FIRST: Persistence initialization failed, but continuing');
+          // Still set ready to true to allow UI to show, but persistence won't work optimally
+          setIsPersistenceReady(true);
         }
       } catch (error) {
-        console.error('[Playground] Error initializing persistence:', error);
-        setIsPersistenceReady(false);
+        console.error('[Playground] 💥 PERSISTENCE-FIRST: Error initializing persistence:', error);
+        // Still set ready to true to allow UI to show
+        setIsPersistenceReady(true);
       }
     };
 
-    initializePersistence();
-  }, [sessionId, hydrateProject]);
+    // Only initialize if we have a valid project ID
+    if (projectId && projectId.trim()) {
+      initializePersistence();
+    } else {
+      console.error('[Playground] ❌ Invalid projectId provided:', projectId);
+      setIsPersistenceReady(true); // Allow UI to show even with invalid ID
+    }
+  }, [projectId, hydrateProject]);
 
   // Precompute styles only when isSidebarCollapsed changes
   const canvasStyles = useMemo(() => {
@@ -175,56 +232,71 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
     }
   };
 
-  // Initialize playground and handle initial messages
+  // Initialize playground - PERSISTENCE-FIRST APPROACH (NO localStorage dependencies)
   useEffect(() => {
-    if (isInitialized.current) return;
+    if (isInitialized.current) {
+      // Already initialized, but check if we need to update UI loading state
+      if (!isUILoading) return; // UI already loaded
+
+      // PERSISTENCE-FIRST: Only show UI when persistence is ready
+      if (isPersistenceReady) {
+        console.log("[Playground] 🎉 PERSISTENCE-FIRST: Persistence ready, showing UI");
+        setIsUILoading(false);
+      } else {
+        console.log("[Playground] ⏳ PERSISTENCE-FIRST: Waiting for persistence to be ready...");
+      }
+      return;
+    }
+
+    // Mark as initialized to prevent multiple initializations
     isInitialized.current = true;
 
     const initializePlayground = async () => {
       try {
-        console.log("[Playground] Initializing playground with sessionId:", sessionId);
+        console.log("[Playground] PERSISTENCE-FIRST: Initializing playground with projectId:", projectId);
 
-        // Store the sessionId in the session store
-        useSessionStore.getState().setSessionId(sessionId);
+        // Store the projectId in the session store (for backward compatibility)
+        useSessionStore.getState().setSessionId(projectId);
 
-        // IMPORTANT: We need to read localStorage values BEFORE any async operations
-        // to ensure we capture the values set by the homepage
+        console.log("[Playground] 🔧 PERSISTENCE-FIRST: Proceeding with initialization (persistence state:", isPersistenceReady, ")");
+
+        // Check for localStorage data (for homepage navigation compatibility)
+        // CRITICAL: Process localStorage IMMEDIATELY for homepage flow - don't wait for persistence
         const initialMessageJson = localStorage.getItem("popmint-initial-message");
         const shouldGenerateAdStr = localStorage.getItem("popmint-generate-ad");
         const storedProductUrl = localStorage.getItem("popmint-product-url");
         const shouldProcessImageStr = localStorage.getItem("popmint-process-image");
         const promptToProcess = localStorage.getItem("popmint-prompt-to-process");
 
-        // Log the values immediately to debug
-        console.log("[Playground] Initial localStorage values:", {
+        // Log the values for debugging
+        console.log("[Playground] 📋 HOMEPAGE FLOW: localStorage values (checked immediately):", {
           initialMessageJson: initialMessageJson ? "exists" : "missing",
+          initialMessageContent: initialMessageJson ? JSON.parse(initialMessageJson) : null,
           shouldGenerateAdStr,
           storedProductUrl,
           shouldProcessImageStr,
           promptToProcess: promptToProcess ? "exists" : "missing"
         });
 
-        // Parse the flags - IMPORTANT: Default to true if URL is present but flag is missing
-        let shouldGenerateAd = shouldGenerateAdStr === "true";
-        let shouldProcessImage = shouldProcessImageStr === "true";
-
-        // If we have a product URL but no generation flag, set it to true
-        // This handles cases where the flag wasn't properly set
-        if (storedProductUrl && !shouldGenerateAd && !shouldProcessImage) {
-          console.log("[Playground] Found URL but no generation flags, enabling ad generation");
-          shouldGenerateAd = true;
+        // HOMEPAGE FLOW: If we have localStorage data, process it immediately regardless of persistence state
+        if (initialMessageJson) {
+          console.log("[Playground] 🚀 HOMEPAGE FLOW: Processing localStorage data immediately (persistence state:", isPersistenceReady, ")");
+        } else if (!isPersistenceReady) {
+          // DIRECT URL ACCESS: Only wait for persistence if no localStorage data
+          console.log("[Playground] ⏳ DIRECT URL ACCESS: No localStorage data, waiting for persistence...");
+          return;
+        } else {
+          console.log("[Playground] ✅ DIRECT URL ACCESS: Persistence ready, proceeding...");
         }
 
-        // Force a small delay before UI operations
-        // This helps with race conditions in some browsers
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Initialize chat UI with initial message
+        // Handle localStorage data if present (homepage navigation) OR wait for persistence (direct URL access)
         if (initialMessageJson) {
+          // CRITICAL HOMEPAGE FLOW: Process localStorage data immediately - NEVER BLOCK THIS!
           try {
             const initialMessage = JSON.parse(initialMessageJson);
+            console.log("[Playground] 🚀 CRITICAL HOMEPAGE FLOW: Processing localStorage message");
 
-            // Add the user's message to the chat
+            // Add the user's message to the chat (will be auto-saved by persistence middleware)
             addMessage({
               type: "text",
               role: "user",
@@ -235,98 +307,56 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
             // Clear the stored message
             localStorage.removeItem("popmint-initial-message");
 
-            // UI is ready now
-            setIsUILoading(false);
+            // CRITICAL HOMEPAGE FLOW: Handle ad generation if requested
+            const shouldGenerateAd = shouldGenerateAdStr === "true";
+            const shouldProcessImage = shouldProcessImageStr === "true";
 
-            // Handle ad generation if flag is set
-            if (shouldGenerateAd) {
-              console.log("[Playground] Ad generation flag is set, processing URL");
+            if (shouldGenerateAd || shouldProcessImage) {
+              console.log("[Playground] 🚀 CRITICAL HOMEPAGE FLOW: Ad generation requested");
 
-              // First check if we have a stored product URL from the homepage
+              // Extract URL from stored data or message content
               let productUrl = storedProductUrl;
-              console.log("[Playground] Stored product URL:", productUrl);
-
-              // If no stored URL, try to extract it from the message content
               if (!productUrl && initialMessage.content) {
-                console.log("[Playground] No stored URL, attempting to extract from content:", initialMessage.content);
                 const urlMatch = initialMessage.content.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
-                console.log("[Playground] URL match result:", urlMatch);
-
                 if (urlMatch && urlMatch.length > 0) {
                   productUrl = urlMatch[0];
-                  console.log("[Playground] Extracted URL:", productUrl);
-
-                  if (productUrl && !productUrl.startsWith('http')) {
+                  if (!productUrl.startsWith('http')) {
                     productUrl = 'https://' + productUrl;
-                    console.log("[Playground] Added https:// prefix:", productUrl);
                   }
                 }
               }
 
-              // If we have a product URL, start ad generation
               if (productUrl) {
-                console.log("[Playground] Starting ad generation with URL:", productUrl);
-
-                // IMPORTANT: Don't use setTimeout here as it can cause race conditions
-                // Instead, start ad generation immediately
+                console.log("[Playground] 🚀 CRITICAL HOMEPAGE FLOW: Starting ad generation with URL:", productUrl);
                 try {
-                  // Handle ad generation directly
                   const content = initialMessage.content || promptToProcess || productUrl;
-                  console.log("[Playground] Calling handleAdGeneration with content:", content);
                   handleAdGeneration(content, productUrl);
                 } catch (adGenError) {
-                  console.error("[Playground] Error in handleAdGeneration:", adGenError);
+                  console.error("[Playground] 💥 CRITICAL HOMEPAGE FLOW: Error in handleAdGeneration:", adGenError);
                 }
-              } else {
-                console.error("[Playground] Ad generation flag set but no product URL found");
-              }
-            }
-            // Handle image processing if flag is set (from debug route)
-            else if (shouldProcessImage && promptToProcess) {
-              console.log("[Playground] Image processing flag is set, processing prompt:", promptToProcess);
-
-              // Extract URL if present in the prompt
-              let productUrl: string | null = null;
-              const urlMatch = promptToProcess.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
-
-              if (urlMatch && urlMatch.length > 0) {
-                productUrl = urlMatch[0];
-                if (productUrl && !productUrl.startsWith('http')) {
-                  productUrl = 'https://' + productUrl;
-                }
-                console.log("[Playground] Extracted URL from prompt:", productUrl);
-
-                // IMPORTANT: Don't use setTimeout here as it can cause race conditions
-                // Instead, start ad generation immediately
-                try {
-                  // Handle ad generation with the extracted URL
-                  if (productUrl && promptToProcess) {
-                    console.log("[Playground] Calling handleAdGeneration with prompt:", promptToProcess);
-                    handleAdGeneration(promptToProcess, productUrl);
-                  }
-                } catch (adGenError) {
-                  console.error("[Playground] Error in handleAdGeneration:", adGenError);
-                }
-              } else {
-                console.error("[Playground] No URL found in prompt to process");
               }
             }
           } catch (error) {
-            console.error("[Playground] Error parsing initialMessageJson:", error);
-            setIsUILoading(false);
+            console.error("[Playground] PERSISTENCE-FIRST: Error parsing initialMessageJson:", error);
           }
+
+          // Clear localStorage flags (cleanup)
+          localStorage.removeItem("popmint-generate-ad");
+          localStorage.removeItem("popmint-product-url");
+          localStorage.removeItem("popmint-process-image");
+          localStorage.removeItem("popmint-prompt-to-process");
+
+          // UI is ready now - show UI immediately for homepage flows
+          console.log("[Playground] 🎉 HOMEPAGE FLOW: Initialization complete, showing UI");
+          setIsUILoading(false);
         } else {
-          // No initial message, show empty UI
+          // DIRECT URL ACCESS: Persistence is already ready (checked above), show UI
+          console.log("[Playground] 🎉 DIRECT URL ACCESS: No localStorage data, persistence ready, showing UI");
           setIsUILoading(false);
         }
 
-        // Clear localStorage flags
-        localStorage.removeItem("popmint-generate-ad");
-        localStorage.removeItem("popmint-product-url");
-        localStorage.removeItem("popmint-process-image");
-        localStorage.removeItem("popmint-prompt-to-process");
       } catch (error) {
-        console.error("[Playground] Error during initialization:", error);
+        console.error("[Playground] PERSISTENCE-FIRST: Error during initialization:", error);
         setIsUILoading(false);
       }
     };
@@ -337,7 +367,7 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
     return () => {
       disconnectSSE();
     };
-  }, [addMessage, sessionId, startAdGeneration, connectToSSE, disconnectSSE]);
+  }, [addMessage, projectId, startAdGeneration, connectToSSE, disconnectSSE, isPersistenceReady]);
 
   if (isUILoading) {
     return (
@@ -375,6 +405,15 @@ export default function ClientSidePlayground({ sessionId }: ClientSidePlayground
         <CanvasArea />
         <CollapsedOverlay position="left" />
       </div>
+
+      {/* Debug: Test Persistence Button */}
+      <button
+        onClick={testPersistence}
+        className="fixed bottom-4 right-4 z-[9999] bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium transition-colors"
+        title="Test persistence functionality"
+      >
+        🧪 Test Persistence
+      </button>
     </div>
   );
 }

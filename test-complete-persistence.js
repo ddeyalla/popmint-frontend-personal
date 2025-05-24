@@ -4,7 +4,7 @@
  * Complete persistence test - tests the full flow from session creation to data persistence
  */
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'http://localhost:3001';
 
 async function makeRequest(url, options = {}) {
   const response = await fetch(`${BASE_URL}${url}`, {
@@ -62,7 +62,7 @@ async function testCompletePersistence() {
         y: 100,
         width: 512,
         height: 512,
-        src: 'https://via.placeholder.com/512x512/FF0000/FFFFFF?text=Persistence+Test+1',
+        src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgZmlsbD0iI0ZGMDAwMCIvPjx0ZXh0IHg9IjI1NiIgeT0iMjU2IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+VGVzdCBJbWFnZSAxPC90ZXh0Pjwvc3ZnPg==',
       },
       {
         type: 'image',
@@ -70,7 +70,7 @@ async function testCompletePersistence() {
         y: 100,
         width: 512,
         height: 512,
-        src: 'https://via.placeholder.com/512x512/00FF00/FFFFFF?text=Persistence+Test+2',
+        src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgZmlsbD0iIzAwRkYwMCIvPjx0ZXh0IHg9IjI1NiIgeT0iMjU2IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+VGVzdCBJbWFnZSAyPC90ZXh0Pjwvc3ZnPg==',
       },
       {
         type: 'text',
@@ -98,11 +98,11 @@ async function testCompletePersistence() {
 
     // Step 5: Verify data persistence
     console.log('\n🔍 Step 5: Verifying data persistence...');
-    
+
     // Check messages
     const messagesResponse = await makeRequest(`/api/projects/${projectId}/chat`);
     console.log(`✅ Retrieved ${messagesResponse.messages.length} chat messages`);
-    
+
     // Verify message order and content
     for (const [index, message] of messagesResponse.messages.entries()) {
       const expected = testMessages[index];
@@ -116,7 +116,7 @@ async function testCompletePersistence() {
     // Check canvas objects
     const objectsResponse = await makeRequest(`/api/projects/${projectId}/canvas`);
     console.log(`✅ Retrieved ${objectsResponse.objects.length} canvas objects`);
-    
+
     // Verify object positions and properties
     for (const [index, obj] of objectsResponse.objects.entries()) {
       const expected = testObjects[index];
@@ -130,7 +130,7 @@ async function testCompletePersistence() {
     // Step 6: Test session-to-project mapping
     console.log('\n🔄 Step 6: Testing session-to-project mapping...');
     const mappingResponse = await makeRequest(`/api/projects/by-session/${sessionId}`);
-    
+
     if (mappingResponse.project_id === projectId) {
       console.log(`✅ Session mapping works: ${sessionId} -> ${projectId}`);
     } else {
@@ -145,11 +145,11 @@ async function testCompletePersistence() {
     console.log(`Playground URL: ${BASE_URL}/playground/${sessionId}`);
     console.log(`Chat Messages: ${messagesResponse.messages.length}/${testMessages.length} saved`);
     console.log(`Canvas Objects: ${objectsResponse.objects.length}/${testObjects.length} saved`);
-    
+
     // Final verification
     const allMessagesCorrect = messagesResponse.messages.length === testMessages.length;
     const allObjectsCorrect = objectsResponse.objects.length === testObjects.length;
-    
+
     if (allMessagesCorrect && allObjectsCorrect) {
       console.log('\n🎉 COMPLETE PERSISTENCE TEST PASSED! 🎉');
       console.log('\n✅ All requirements verified:');

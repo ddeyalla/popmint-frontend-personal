@@ -45,11 +45,31 @@ export async function saveChatMessage(
   message: ChatMessage
 ): Promise<ChatMessage | null> {
   try {
-    console.log('[ChatPersistence] Saving message:', message.id);
+    console.log('[ChatPersistence] 🔍 DEBUG: Saving message:', {
+      projectId,
+      messageId: message.id,
+      role: message.role,
+      contentLength: message.content.length,
+      type: message.type,
+      isTemporary: message.isTemporary,
+    });
+
+    const apiMessage = messageToApiFormat(message);
+    console.log('[ChatPersistence] 🔍 DEBUG: Converted to API format:', {
+      role: apiMessage.role,
+      message_type: apiMessage.message_type,
+      content_length: apiMessage.content.length,
+      image_urls_count: apiMessage.image_urls?.length || 0,
+    });
 
     const response = await apiCall<{ message: any }>(`/api/projects/${projectId}/chat`, {
       method: 'POST',
-      body: JSON.stringify(messageToApiFormat(message)),
+      body: JSON.stringify(apiMessage),
+    });
+
+    console.log('[ChatPersistence] 🔍 DEBUG: API response received:', {
+      success: !!response.message,
+      messageId: response.message?.id,
     });
 
     const serverMessage = apiMessageToStoreFormat(response.message);
@@ -57,11 +77,20 @@ export async function saveChatMessage(
     // Map local ID to server ID
     localToServerIdMap.set(message.id, serverMessage.id);
 
-    console.log('[ChatPersistence] Message saved successfully:', serverMessage.id);
+    console.log('[ChatPersistence] ✅ Message saved successfully:', {
+      localId: message.id,
+      serverId: serverMessage.id,
+      timestamp: serverMessage.timestamp,
+    });
     return serverMessage;
 
   } catch (error) {
-    console.error('[ChatPersistence] Error saving message:', error);
+    console.error('[ChatPersistence] 💥 ERROR saving message:', {
+      projectId,
+      messageId: message.id,
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
     // Add to offline queue for retry
     offlineQueue.add(() => saveChatMessage(projectId, message));
@@ -101,8 +130,18 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
     chatStore.subscribe(
       (state: any) => state.messages,
       async (currentMessages: ChatMessage[], previousMessages: ChatMessage[]) => {
+        console.log('[ChatPersistence] 🔔 Store subscription triggered');
+        console.log('[ChatPersistence] 📊 Current messages count:', currentMessages?.length || 0);
+        console.log('[ChatPersistence] 📊 Previous messages count:', previousMessages?.length || 0);
+
         // Skip if persistence is disabled or not initialized
-        if (!config.enabled || !config.projectId || !isInitialized) {
+        if (!config.enabled || !config.projectId) {
+          console.log('[ChatPersistence] ⏸️ Skipping - persistence disabled or no project ID:', { enabled: config.enabled, projectId: config.projectId });
+          return;
+        }
+
+        if (!isInitialized) {
+          console.log('[ChatPersistence] ⏸️ Skipping - middleware not initialized yet');
           return;
         }
 
@@ -113,12 +152,33 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
 
         // Save each new message
         for (const message of newMessages) {
-          // Skip if this is a temporary message or already has a server ID
-          if (message.isTemporary || !message.id.startsWith('local-')) {
+          console.log('[ChatPersistence] 🔍 Processing message:', {
+            id: message.id,
+            role: message.role,
+            type: message.type,
+            isTemporary: message.isTemporary,
+            contentLength: message.content.length,
+          });
+
+          // Skip if this is a temporary message
+          if (message.isTemporary) {
+            console.log('[ChatPersistence] ⏭️ Skipping temporary message:', message.id);
+            continue;
+          }
+
+          // Skip if this message already has a server ID (UUID format)
+          const isServerMessage = message.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+          if (isServerMessage) {
+            console.log('[ChatPersistence] ⏭️ Skipping server message (already persisted):', message.id);
             continue;
           }
 
           try {
+            console.log('[ChatPersistence] 💾 Attempting to save new message:', {
+              id: message.id,
+              type: message.type,
+              role: message.role,
+            });
             const serverMessage = await saveChatMessage(config.projectId, message);
 
             if (serverMessage) {
@@ -127,9 +187,18 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
                 id: serverMessage.id,
                 timestamp: serverMessage.timestamp,
               });
+              console.log('[ChatPersistence] ✅ Message saved and updated in store:', {
+                oldId: message.id,
+                newId: serverMessage.id,
+              });
+            } else {
+              console.error('[ChatPersistence] ❌ Failed to save message (null returned):', message.id);
             }
           } catch (error) {
-            console.error('[ChatPersistence] Failed to save message:', error);
+            console.error('[ChatPersistence] 💥 Exception while saving message:', {
+              messageId: message.id,
+              error: error instanceof Error ? error.message : error,
+            });
             // The message will be retried via the offline queue
           }
         }
@@ -140,7 +209,9 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
     return {
       initialize: () => {
         isInitialized = true;
-        console.log('[ChatPersistence] Middleware initialized for project:', config.projectId);
+        console.log('[ChatPersistence] 🚀 Middleware initialized for project:', config.projectId);
+        console.log('[ChatPersistence] 🔧 Config:', { enabled: config.enabled, projectId: config.projectId });
+        console.log('[ChatPersistence] 📡 Subscription active, waiting for message changes...');
       },
 
       disable: () => {
@@ -164,18 +235,45 @@ export async function hydrateChatStore(
   projectId: string
 ): Promise<boolean> {
   try {
-    console.log('[ChatPersistence] Hydrating chat store for project:', projectId);
+    console.log('[ChatPersistence] 💾 Starting chat store hydration for project:', projectId);
 
     const messages = await loadChatMessages(projectId);
+    console.log(`[ChatPersistence] 📥 Loaded ${messages.length} messages from server`);
 
-    // Use setMessages to avoid triggering persistence middleware
-    chatStore.getState().setMessages(messages);
+    if (messages.length === 0) {
+      console.log('[ChatPersistence] ✅ No messages to hydrate, chat store ready');
+      return true;
+    }
 
-    console.log('[ChatPersistence] Chat store hydrated successfully');
+    // Validate message format before setting
+    const validMessages = messages.filter(msg => {
+      if (!msg.id || !msg.role || !msg.content) {
+        console.warn('[ChatPersistence] ⚠️ Invalid message format, skipping:', msg);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`[ChatPersistence] ✅ Validated ${validMessages.length}/${messages.length} messages`);
+
+    // Use setMessages to avoid triggering persistence middleware during hydration
+    // The middleware should already be initialized at this point
+    chatStore.getState().setMessages(validMessages);
+
+    console.log('[ChatPersistence] 🎉 Chat store hydrated successfully');
     return true;
 
   } catch (error) {
-    console.error('[ChatPersistence] Error hydrating chat store:', error);
+    console.error('[ChatPersistence] 💥 Error hydrating chat store:', error);
+
+    // Try to set empty messages array to ensure store is in a valid state
+    try {
+      chatStore.getState().setMessages([]);
+      console.log('[ChatPersistence] 🔄 Set empty messages array as fallback');
+    } catch (fallbackError) {
+      console.error('[ChatPersistence] 💥 Failed to set fallback empty messages:', fallbackError);
+    }
+
     return false;
   }
 }

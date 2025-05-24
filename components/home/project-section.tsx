@@ -47,9 +47,9 @@ export function ProjectSection() {
       });
 
       if (newProject) {
-        console.log('[ProjectSection] Project created successfully, navigating to:', sessionId);
-        // Navigate to the new project
-        router.push(`/playground/${sessionId}`);
+        console.log('[ProjectSection] Project created successfully, navigating to project ID:', newProject.id);
+        // Navigate to the new project using project ID
+        router.push(`/playground/${newProject.id}`);
       } else {
         console.error('[ProjectSection] Project creation returned null');
       }
@@ -73,8 +73,8 @@ export function ProjectSection() {
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <span>Your Projects</span>
         </h2>
-        <button 
-          onClick={handleRetry} 
+        <button
+          onClick={handleRetry}
           className="text-sm text-gray-500 flex items-center gap-1 hover:text-gray-700"
         >
           <RefreshCw className="w-4 h-4" /> Refresh

@@ -77,11 +77,45 @@ export async function saveCanvasObject(
   savingObjects.add(object.id);
 
   try {
-    console.log('[CanvasPersistence] Saving object:', object.id);
+    console.log('[CanvasPersistence] 🔍 DEBUG: Saving object:', {
+      projectId,
+      objectId: object.id,
+      type: object.type,
+      x: object.x,
+      y: object.y,
+      width: object.width,
+      height: object.height,
+      src: object.src ? 'present' : 'none',
+    });
+
+    // Ensure type is one of the allowed values
+    let type = object.type;
+    if (!['image', 'text', 'shape'].includes(type)) {
+      console.warn(`[CanvasPersistence] ⚠️ Invalid type "${type}", defaulting to "shape"`);
+      type = 'shape';
+    }
+
+    const apiObject = {
+      ...objectToApiFormat(object),
+      type: type, // Override with validated type
+    };
+
+    console.log('[CanvasPersistence] 🔍 DEBUG: Converted to API format:', {
+      project_id: apiObject.project_id,
+      type: apiObject.type,
+      x: apiObject.x,
+      y: apiObject.y,
+      props_keys: Object.keys(apiObject.props || {}),
+    });
 
     const response = await apiCall<{ object: any }>(`/api/projects/${projectId}/canvas`, {
       method: 'POST',
-      body: JSON.stringify(objectToApiFormat(object)),
+      body: JSON.stringify(apiObject),
+    });
+
+    console.log('[CanvasPersistence] 🔍 DEBUG: API response received:', {
+      success: !!response.object,
+      objectId: response.object?.id,
     });
 
     const serverObject = apiObjectToStoreFormat(response.object);
@@ -89,11 +123,21 @@ export async function saveCanvasObject(
     // Map local ID to server ID
     localToServerIdMap.set(object.id, serverObject.id);
 
-    console.log('[CanvasPersistence] Object saved successfully:', serverObject.id);
+    console.log('[CanvasPersistence] ✅ Object saved successfully:', {
+      localId: object.id,
+      serverId: serverObject.id,
+      type: serverObject.type,
+    });
     return serverObject;
 
   } catch (error) {
-    console.error('[CanvasPersistence] Error saving object:', error);
+    console.error('[CanvasPersistence] 💥 ERROR saving object:', {
+      projectId,
+      objectId: object.id,
+      type: object.type,
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
     // Add to offline queue for retry
     offlineQueue.add(() => saveCanvasObject(projectId, object));
@@ -208,8 +252,19 @@ export function createCanvasPersistenceMiddleware(config: CanvasPersistenceConfi
     canvasStore.subscribe(
       (state: any) => state.objects,
       async (currentObjects: KonvaObject[]) => {
+        console.log('[CanvasPersistence] 🔔 Store subscription triggered');
+        console.log('[CanvasPersistence] 📊 Current objects count:', currentObjects?.length || 0);
+        console.log('[CanvasPersistence] 📊 Previous objects count:', previousObjects?.length || 0);
+
         // Skip if persistence is disabled or not initialized
-        if (!config.enabled || !config.projectId || !isInitialized) {
+        if (!config.enabled || !config.projectId) {
+          console.log('[CanvasPersistence] ⏸️ Skipping - persistence disabled or no project ID:', { enabled: config.enabled, projectId: config.projectId });
+          previousObjects = currentObjects;
+          return;
+        }
+
+        if (!isInitialized) {
+          console.log('[CanvasPersistence] ⏸️ Skipping - middleware not initialized yet');
           previousObjects = currentObjects;
           return;
         }
@@ -232,12 +287,28 @@ export function createCanvasPersistenceMiddleware(config: CanvasPersistenceConfi
 
         // Handle new objects
         for (const object of newObjects) {
-          // Skip if this object doesn't have a local ID (already from server)
-          if (!object.id.startsWith('local-')) {
+          console.log('[CanvasPersistence] 🔍 Processing object:', {
+            id: object.id,
+            type: object.type,
+            x: object.x,
+            y: object.y,
+            width: object.width,
+            height: object.height,
+          });
+
+          // Skip if this object already has a server ID (UUID format)
+          const isServerObject = object.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+          if (isServerObject) {
+            console.log('[CanvasPersistence] ⏭️ Skipping server object (already persisted):', object.id);
             continue;
           }
 
           try {
+            console.log('[CanvasPersistence] 💾 Attempting to save new object:', {
+              id: object.id,
+              type: object.type,
+              position: `${object.x},${object.y}`,
+            });
             const serverObject = await saveCanvasObject(config.projectId, object);
 
             if (serverObject) {
@@ -245,9 +316,18 @@ export function createCanvasPersistenceMiddleware(config: CanvasPersistenceConfi
               canvasStore.getState().updateObject(object.id, {
                 id: serverObject.id,
               });
+              console.log('[CanvasPersistence] ✅ Object saved and updated in store:', {
+                oldId: object.id,
+                newId: serverObject.id,
+              });
+            } else {
+              console.error('[CanvasPersistence] ❌ Failed to save object (null returned):', object.id);
             }
           } catch (error) {
-            console.error('[CanvasPersistence] Failed to save object:', error);
+            console.error('[CanvasPersistence] 💥 Exception while saving object:', {
+              objectId: object.id,
+              error: error instanceof Error ? error.message : error,
+            });
           }
         }
 
@@ -259,6 +339,7 @@ export function createCanvasPersistenceMiddleware(config: CanvasPersistenceConfi
 
         // Handle updated objects (debounced)
         for (const object of updatedObjects) {
+          console.log('[CanvasPersistence] Scheduling update for object:', object.id, object.type);
           debouncedUpdate(config.projectId, object.id, object);
         }
 
@@ -294,19 +375,53 @@ export async function hydrateCanvasStore(
   projectId: string
 ): Promise<boolean> {
   try {
-    console.log('[CanvasPersistence] Hydrating canvas store for project:', projectId);
+    console.log('[CanvasPersistence] 💾 Starting canvas store hydration for project:', projectId);
 
     const objects = await loadCanvasObjects(projectId);
+    console.log(`[CanvasPersistence] 📥 Loaded ${objects.length} objects from server`);
 
-    // Set the loaded objects directly
-    canvasStore.getState().setObjects?.(objects) ||
-    canvasStore.setState({ objects });
+    if (objects.length === 0) {
+      console.log('[CanvasPersistence] ✅ No objects to hydrate, canvas store ready');
+      return true;
+    }
 
-    console.log('[CanvasPersistence] Canvas store hydrated successfully');
+    // Validate object format before setting
+    const validObjects = objects.filter(obj => {
+      if (!obj.id || !obj.type || obj.x === undefined || obj.y === undefined) {
+        console.warn('[CanvasPersistence] ⚠️ Invalid object format, skipping:', obj);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`[CanvasPersistence] ✅ Validated ${validObjects.length}/${objects.length} objects`);
+
+    // Set the loaded objects directly - use setObjects if available, otherwise setState
+    // The middleware should already be initialized at this point
+    if (canvasStore.getState().setObjects) {
+      canvasStore.getState().setObjects(validObjects);
+    } else {
+      canvasStore.setState({ objects: validObjects });
+    }
+
+    console.log('[CanvasPersistence] 🎉 Canvas store hydrated successfully');
     return true;
 
   } catch (error) {
-    console.error('[CanvasPersistence] Error hydrating canvas store:', error);
+    console.error('[CanvasPersistence] 💥 Error hydrating canvas store:', error);
+
+    // Try to set empty objects array to ensure store is in a valid state
+    try {
+      if (canvasStore.getState().setObjects) {
+        canvasStore.getState().setObjects([]);
+      } else {
+        canvasStore.setState({ objects: [] });
+      }
+      console.log('[CanvasPersistence] 🔄 Set empty objects array as fallback');
+    } catch (fallbackError) {
+      console.error('[CanvasPersistence] 💥 Failed to set fallback empty objects:', fallbackError);
+    }
+
     return false;
   }
 }

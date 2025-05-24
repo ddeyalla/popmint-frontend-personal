@@ -4,8 +4,8 @@ import ClientSidePlayground from "./client";
 
 
 interface PlaygroundPageProps {
-  params: Promise<{ 
-    sessionId: string;
+  params: Promise<{
+    projectId: string;
   }>;
 }
 
@@ -20,17 +20,17 @@ export default async function PlaygroundPage({ params }: PlaygroundPageProps) {
   // This log will now appear in your server terminal with the resolved object
   console.log('[PlaygroundPage Server Component] Rendering with resolved params:', resolvedParams);
 
-  if (!resolvedParams || !resolvedParams.sessionId) {
+  if (!resolvedParams || !resolvedParams.projectId) {
     // This log will also appear in your server terminal
-    console.error('[PlaygroundPage Server Component] Error: sessionId is missing in resolved params. Resolved params:', resolvedParams);
-    return <div>Error: Session ID is missing. Cannot load playground.</div>;
+    console.error('[PlaygroundPage Server Component] Error: projectId is missing in resolved params. Resolved params:', resolvedParams);
+    return <div>Error: Project ID is missing. Cannot load playground.</div>;
   }
-  
-  const sessionId = resolvedParams.sessionId;
+
+  const projectId = resolvedParams.projectId;
   // This log will also appear in your server terminal
-  console.log('[PlaygroundPage Server Component] Extracted sessionId:', sessionId);
+  console.log('[PlaygroundPage Server Component] Extracted projectId:', projectId);
 
   // ClientSidePlayground is a Client Component and will render in the browser.
-  // We pass the sessionId (a string) as a prop.
-  return <ClientSidePlayground sessionId={sessionId} />;
+  // We pass the projectId (a string) as a prop.
+  return <ClientSidePlayground projectId={projectId} />;
 }

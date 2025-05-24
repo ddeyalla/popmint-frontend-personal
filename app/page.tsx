@@ -450,10 +450,10 @@ export default function Home() {
   return (
     <div className="min-h-screen w-full flex flex-col relative overflow-hidden">
       {/* Fixed gradient background */}
-      <div className="fixed inset-0 bg-gradient-to-tr from-sky-300 via-purple-200 via-70% to-yellow-100 -z-10"></div>
+      <div className="fixed inset-0 bg-pastel-swirl bg-cover bg-center -z-10"></div>
 
       {/* Noise texture overlay - also fixed */}
-      <div className="pointer-events-none fixed inset-0 z-10 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
+      <div className="pointer-events-none fixed inset-0 z-10 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-20 mix-blend-soft-light"></div>
 
       <div className="container mx-auto px-4 py-4 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
         {/* Header - Sticky */}

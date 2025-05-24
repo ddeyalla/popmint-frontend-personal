@@ -286,28 +286,44 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       hydrateProject: async (projectId: string) => {
-        console.log('[ProjectStore] Hydrating project:', projectId);
+        console.log('[ProjectStore] 🚀 Hydrating project:', projectId);
+        console.log('[ProjectStore] 🔧 Starting hydration process...');
         set({ isHydrating: true, error: null });
 
         try {
-          // Get or create the project by session ID
-          console.log('[ProjectStore] Getting project for sessionId:', projectId);
+          // First, try to get the project directly by ID
+          console.log('[ProjectStore] Getting project by ID:', projectId);
           let actualProjectId = projectId;
+          let projectExists = false;
 
           try {
-            const response = await apiCall(`/api/projects/by-session/${projectId}`);
-
-            // Get the actual project ID from the response
-            actualProjectId = response.project_id;
-            console.log('[ProjectStore] Project found/created, actual ID:', actualProjectId);
+            const response = await apiCall(`/api/projects/${projectId}`);
+            if (response.project) {
+              console.log('[ProjectStore] Project found by ID:', response.project.id);
+              actualProjectId = response.project.id;
+              projectExists = true;
+            }
           } catch (getError) {
-            console.error('[ProjectStore] Failed to get/create project:', getError);
-            // Continue anyway - we'll try to initialize persistence with sessionId
+            console.log('[ProjectStore] Project not found by ID, trying by session ID:', getError);
+
+            // If direct lookup fails, try by session ID (for backward compatibility)
+            try {
+              const sessionResponse = await apiCall(`/api/projects/by-session/${projectId}`);
+              actualProjectId = sessionResponse.project_id;
+              console.log('[ProjectStore] Project found/created by session ID, actual ID:', actualProjectId);
+              projectExists = true;
+            } catch (sessionError) {
+              console.error('[ProjectStore] Failed to get/create project by session ID:', sessionError);
+              // Continue anyway - we'll try to initialize persistence with the provided ID
+            }
           }
 
           // Initialize persistence for this project using the actual project ID
+          console.log('[ProjectStore] 🔧 Importing persistence manager...');
           const { initializePersistence } = await import('@/lib/persistence-manager');
+          console.log('[ProjectStore] 🚀 Initializing persistence for project:', actualProjectId);
           const success = await initializePersistence(actualProjectId);
+          console.log('[ProjectStore] 📊 Persistence initialization result:', success);
 
           if (!success) {
             console.warn('[ProjectStore] Persistence initialization failed, but continuing');

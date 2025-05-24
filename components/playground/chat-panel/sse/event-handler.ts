@@ -10,6 +10,7 @@ import {
   handleErrorEvent
 } from "../handlers";
 import { mapBackendStage, getStageDisplayName, stepStartTimes } from "../utils/stage-utils";
+import { getPersistenceManager } from "@/lib/persistence-manager";
 
 /**
  * Hook for handling SSE events
@@ -19,6 +20,20 @@ export function useSSEEventHandler() {
   const handleSSEEvent = useCallback((eventData: any) => {
     try {
       console.log('[SSE] handleSSEEvent called with data:', JSON.stringify(eventData, null, 2));
+
+      // PERSISTENCE-FIRST: Check if persistence is ready (but don't block processing)
+      try {
+        const persistenceManager = getPersistenceManager();
+        const status = persistenceManager.getStatus();
+
+        if (!status.isInitialized) {
+          console.warn('[SSE] PERSISTENCE-FIRST: Persistence not ready yet, but processing event anyway');
+        } else {
+          console.log('[SSE] PERSISTENCE-FIRST: Persistence is ready, processing event');
+        }
+      } catch (error) {
+        console.warn('[SSE] PERSISTENCE-FIRST: Persistence manager not available, proceeding without persistence');
+      }
 
       // Check if eventData is defined and not empty
       if (!eventData) {
