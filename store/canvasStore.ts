@@ -28,6 +28,8 @@ type CanvasState = {
   stageOffset: { x: number; y: number }
   toolMode: 'move' | 'hand' | 'scale'
   isSidebarCollapsed: boolean
+  thumbnailCallback?: () => void
+  setThumbnailCallback: (callback: () => void) => void
   setToolMode: (mode: 'move' | 'hand' | 'scale') => void
   setStageOffset: (offset: { x: number; y: number }) => void
   updateStageOffset: (delta: { x: number; y: number }) => void
@@ -59,6 +61,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   stageOffset: { x: 0, y: 0 },
   toolMode: 'move',
   isSidebarCollapsed: false,
+  thumbnailCallback: undefined,
+  setThumbnailCallback: (callback) => set({ thumbnailCallback: callback }),
   setToolMode: (mode) => set({ toolMode: mode }),
 
   setStageOffset: (offset) => set({ stageOffset: offset }),
@@ -97,6 +101,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           historyStep: state.historyStep + 1,
         }
       })
+
+      // Trigger thumbnail generation
+      const { thumbnailCallback } = get()
+      if (thumbnailCallback) {
+        thumbnailCallback()
+      }
     } catch (error) {
       console.error("Error adding object:", error)
     }
@@ -230,6 +240,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       })
       get().saveState()
+
+      // Trigger thumbnail generation
+      const { thumbnailCallback } = get()
+      if (thumbnailCallback) {
+        thumbnailCallback()
+      }
     } catch (error) {
       console.error("Error updating object:", error)
     }
@@ -246,6 +262,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       })
       get().saveState()
+
+      // Trigger thumbnail generation
+      const { thumbnailCallback } = get()
+      if (thumbnailCallback) {
+        thumbnailCallback()
+      }
     } catch (error) {
       console.error("Error deleting object(s):", error)
     }

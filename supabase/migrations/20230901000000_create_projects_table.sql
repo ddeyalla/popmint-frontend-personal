@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
   name TEXT NOT NULL,
   description TEXT,
   thumbnail_url TEXT,
+  thumbnail_updated_at TIMESTAMP WITH TIME ZONE,
   user_id TEXT NOT NULL,
   session_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
@@ -47,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.canvas_objects (
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_projects_created_at ON public.projects(created_at);
 CREATE INDEX IF NOT EXISTS idx_projects_user_id ON public.projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_thumb_updated ON public.projects(thumbnail_updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_proj_time ON public.chat_messages(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_canvas_proj_updated ON public.canvas_objects(project_id, updated_at);
 

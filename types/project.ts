@@ -3,6 +3,7 @@ export interface Project {
   name: string;
   description: string;
   thumbnail_url: string;
+  thumbnail_updated_at?: string;
   created_at: string;
   updated_at: string;
   user_id: string;
