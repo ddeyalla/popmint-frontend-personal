@@ -77,12 +77,11 @@ export class PersistenceManager {
       // Add a small delay to ensure middleware subscriptions are active
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Now hydrate stores with data from server
-      console.log('[PersistenceManager] 💾 Starting store hydration...');
-      const [chatSuccess, canvasSuccess] = await Promise.all([
-        this.hydrateChatStore(),
-        this.hydrateCanvasStore(),
-      ]);
+      // FIXED: Don't hydrate chat store here - let SWR handle it in ChatPanel
+      // This avoids double hydration and conflicts between persistence manager and SWR
+      console.log('[PersistenceManager] 💾 Starting canvas store hydration (chat handled by SWR)...');
+      const canvasSuccess = await this.hydrateCanvasStore();
+      const chatSuccess = true; // Always true since SWR handles chat hydration
 
       if (!chatSuccess) {
         console.error('[PersistenceManager] ❌ Failed to hydrate chat store');

@@ -2,8 +2,12 @@
 
 import { Project } from '@/types/project';
 import Link from 'next/link';
-import { ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useProjectStore } from '@/store/projectStore';
+import { createPortal } from 'react-dom';
+import { ThumbnailGrid } from './thumbnail-grid';
 
 interface ProjectCardProps {
   project?: Project;
@@ -14,9 +18,37 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, isCreateCard = false, onClick, isLoading = false }: ProjectCardProps) {
   const router = useRouter();
+  const { deleteProject } = useProjectStore();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isModalClosing, setIsModalClosing] = useState(false);
+
+  // Handle modal effects (keyboard, body scroll)
+  useEffect(() => {
+    if (showDeleteModal) {
+      // Prevent body scrolling
+      document.body.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
+
+      // Handle escape key
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleDeleteCancel();
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [showDeleteModal]);
 
   const handleClick = () => {
-    if (isLoading) return;
+    if (isLoading || isDeleting) return;
 
     if (isCreateCard && onClick) {
       onClick();
@@ -26,6 +58,41 @@ export function ProjectCard({ project, isCreateCard = false, onClick, isLoading 
     if (project?.id) {
       // Use project ID for navigation instead of session_id
       router.push(`/playground/${project.id}`);
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!project?.id || isDeleting) return;
+
+    setIsDeleting(true);
+    try {
+      const success = await deleteProject(project.id);
+      if (success) {
+        setShowDeleteModal(false);
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setIsModalClosing(true);
+    setTimeout(() => {
+      setShowDeleteModal(false);
+      setIsModalClosing(false);
+    }, 150); // Match animation duration
+  };
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      handleDeleteCancel();
     }
   };
 
@@ -41,7 +108,7 @@ export function ProjectCard({ project, isCreateCard = false, onClick, isLoading 
         }`}
       >
         {/* Empty thumbnail area with same aspect ratio */}
-        <div className="transition delay-40 duration-200 ease-in-out hover:shadow-[4px 1px 12px 0px #0000001A] aspect-[16/9] hover:-translate-y-1 hover:-rotate-1 rounded-sm bg-gray-50 flex items-center justify-center  shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c]">
+        <div className="transition delay-40 duration-200 ease-in-out hover:shadow-[4px 1px 12px 0px #0000001A] aspect-square hover:-translate-y-1 hover:-rotate-1 rounded-sm bg-gray-50 flex items-center justify-center  shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c]">
           {isLoading ? (
             <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           ) : (
@@ -74,76 +141,88 @@ export function ProjectCard({ project, isCreateCard = false, onClick, isLoading 
   });
 
   return (
-    <div
-      onClick={handleClick}
-      className="rounded-sm cursor-pointer hover:shadow-md transition-all duration-200 hover:border-blue-200 flex flex-col h-full w-full"
-    >
-      {/* Thumbnail - 16:9 aspect ratio */}
-      <div className="transition delay-40 duration-200 ease-in-out aspect-[16/9] relative overflow-hidden rounded-sm shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] hover:-translate-y-1 hover:-rotate-1">
-        {project.thumbnail_url ? (
-          <img
-            src={project.thumbnail_url}
-            alt={`${project.name} preview`}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              // Hide broken image and show fallback
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              const fallback = target.nextElementSibling as HTMLElement;
-              if (fallback) {
-                fallback.style.display = 'flex';
-              }
-            }}
-            onLoad={(e) => {
-              // Ensure fallback is hidden when image loads successfully
-              const target = e.target as HTMLImageElement;
-              const fallback = target.nextElementSibling as HTMLElement;
-              if (fallback) {
-                fallback.style.display = 'none';
-              }
-            }}
-          />
-        ) : null}
+    <>
+      <div
+        onClick={handleClick}
+        className="rounded-sm cursor-pointer hover:shadow-md transition-all duration-200 hover:border-blue-200 flex flex-col h-full w-full group relative"
+      >
+      {/* Thumbnail - 1:1 aspect ratio with 2x2 image grid */}
+      <div className="transition delay-40 duration-200 ease-in-out aspect-square relative overflow-hidden rounded-sm shadow-[0px_1px_2px_#00000026,0px_0px_0.5px_#0000004c] hover:-translate-y-1 hover:-rotate-1">
+        <ThumbnailGrid
+          projectId={project.id}
+          className="w-full h-full"
+        />
 
-        {/* Fallback content - shown when no thumbnail or image fails to load */}
-        <div
-          className={`w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 ${
-            project.thumbnail_url ? 'hidden' : 'flex'
-          }`}
-          style={{ display: project.thumbnail_url ? 'none' : 'flex' }}
+        {/* Delete button - positioned at bottom-left corner of thumbnail */}
+        <button
+          onClick={handleDeleteClick}
+          className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-md bg-white/90 backdrop-blur-sm hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all duration-200 shadow-sm"
+          title="Delete project"
         >
-          <div className="w-12 h-12 rounded-lg bg-white shadow-sm flex items-center justify-center mb-2">
-            <svg
-              className="w-6 h-6 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+        {/* Content */}
+        <div className="p-3 flex-1 flex flex-col">
+          <h3 className="font-medium text-gray-900 mb-1 line-clamp-1">{project.name}</h3>
+          {/* Footer with date and action */}
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-600">{formattedDate}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-900 flex items-center gap-1 font-medium">
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            </div>
           </div>
-          <span className="text-gray-500 text-xs font-medium">No preview</span>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-3 flex-1 flex flex-col">
-        <h3 className="font-medium text-gray-900 mb-1 line-clamp-1">{project.name}</h3>
-        {/* Footer with date and action */}
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-600">{formattedDate}</span>
+      {/* Delete confirmation modal using portal */}
+      {showDeleteModal && typeof window !== 'undefined' && createPortal(
+        <div
+          className={`fixed inset-0 backdrop-blur-[8px] flex items-center justify-center z-[9999] transition-opacity duration-150 ease-in ${
+            isModalClosing ? 'opacity-0' : 'opacity-100'
+          }`}
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          onClick={handleOverlayClick}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-modal-title"
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-xl max-w-[90vw] transform transition-transform duration-150 ease-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              id="delete-modal-title"
+              className="text-lg font-semibold text-gray-900 mb-4 text-center"
+            >
+              Do you want to delete your project?
+            </h3>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleDeleteCancel}
+                className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-full transition-colors"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-6 py-2 text-sm font-medium text-white bg-black hover:bg-gray-800 rounded-full transition-colors disabled:opacity-50"
+                disabled={isDeleting}
+                autoFocus
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm'}
+              </button>
+            </div>
           </div>
-          <span className="text-xs text-slate-900 flex items-center gap-1 font-medium">
-            <ArrowRight className="w-4 h-4" />
-          </span>
-        </div>
-      </div>
-    </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

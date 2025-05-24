@@ -93,6 +93,7 @@
   --font-sans: Inter, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
+  --font-advercase-bold: "AdvercaseBold", sans-serif;
   --radius: 1.5rem;
   --shadow-2xs: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
   --shadow-xs: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
@@ -157,5 +158,81 @@
     color: #0f1419;
     font-size: 16px;
     line-height: 1.5;
+  }
+
+  /* Custom font faces */
+  @font-face {
+    font-family: "Advercase Regular";
+    src: url(/fonts/AdvercaseFont-Regular.otf) format("opentype"),
+         url(/fonts/AdvercaseFont-Regular.ttf) format("truetype");
+    font-style: normal;
+    font-weight: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: "AdvercaseBold";
+    src: url(/fonts/AdvercaseFont-Bold.otf) format("opentype");
+    font-style: normal;
+    font-weight: bold;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: "AdvercaseBoldTTF";
+    src: url(/fonts/AdvercaseFont-Bold.ttf) format("truetype");
+    font-style: normal;
+    font-weight: bold;
+    font-display: swap;
+  }
+
+  /* Force Advercase Bold font with high specificity */
+  .font-advercase-bold {
+    font-family: var(--font-advercase-bold) !important;
+  }
+
+  /* Modal overlay styles */
+  body.modal-open {
+    overflow: hidden;
+  }
+
+  /* Thumbnail grid styles */
+  .thumbnail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    aspect-ratio: 1;
+    width: 100%;
+    overflow: hidden;
+    gap: 1px;
+    background-color: #e5e7eb; /* Gray border between cells */
+  }
+
+  .thumbnail-grid .grid-cell {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .thumbnail-grid .placeholder {
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Fallback for IE11 using flexbox */
+  @supports not (display: grid) {
+    .thumbnail-grid {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .thumbnail-grid .grid-cell {
+      width: calc(50% - 0.5px);
+      height: calc(50% - 0.5px);
+      margin: 0.25px;
+    }
   }
 }

@@ -21,7 +21,7 @@ const config = {
     extend: {
       fontFamily: {
         sora: ['var(--font-sora)'],
-
+        'advercase-bold': ['AdvercaseBold', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

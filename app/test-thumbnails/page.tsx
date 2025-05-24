@@ -23,11 +23,17 @@ export default function TestThumbnailsPage() {
     setError('');
 
     try {
-      console.log('Generating thumbnail for test project:', testProjectId);
-      
-      // Generate thumbnail blob
-      const blob = await generateThumbnail(stageRef.current);
-      console.log('Generated blob:', blob.size, 'bytes');
+      console.log('Generating high-quality thumbnail for test project:', testProjectId);
+
+      // Generate thumbnail blob with high quality settings
+      const blob = await generateThumbnail(stageRef.current, {
+        pixelRatio: 2.0,
+        quality: 0.9,
+        maxWidth: 600,
+        maxHeight: 400,
+        backgroundColor: '#FAFAFA',
+      });
+      console.log('Generated high-quality blob:', blob.size, 'bytes');
 
       // Upload to server
       const url = await uploadThumbnail(testProjectId, blob);
@@ -52,9 +58,15 @@ export default function TestThumbnailsPage() {
     setError('');
 
     try {
-      console.log('Generating and uploading thumbnail for test project:', testProjectId);
-      
-      const url = await generateAndUploadThumbnail(stageRef.current, testProjectId);
+      console.log('Generating and uploading high-quality thumbnail for test project:', testProjectId);
+
+      const url = await generateAndUploadThumbnail(stageRef.current, testProjectId, {
+        pixelRatio: 2.0,
+        quality: 0.9,
+        maxWidth: 600,
+        maxHeight: 400,
+        backgroundColor: '#FAFAFA',
+      });
       console.log('Generate and upload successful, URL:', url);
 
       setThumbnailUrl(url);
@@ -70,7 +82,7 @@ export default function TestThumbnailsPage() {
     if (!stageRef.current) return;
 
     const stage = stageRef.current;
-    const layer = stage.findOne('Layer');
+    const layer = stage.findOne('Layer') as Konva.Layer;
     if (!layer) return;
 
     // Add a random colored rectangle
@@ -91,7 +103,7 @@ export default function TestThumbnailsPage() {
     if (!stageRef.current) return;
 
     const stage = stageRef.current;
-    const layer = stage.findOne('Layer');
+    const layer = stage.findOne('Layer') as Konva.Layer;
     if (!layer) return;
 
     layer.destroyChildren();
@@ -103,7 +115,7 @@ export default function TestThumbnailsPage() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Thumbnail Generation Test</h1>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Canvas Section */}
           <div className="bg-white rounded-lg shadow-sm p-6">
@@ -111,7 +123,7 @@ export default function TestThumbnailsPage() {
             <p className="text-gray-600 mb-4">
               Add some shapes to the canvas and then generate a thumbnail.
             </p>
-            
+
             <div className="mb-4 space-x-2">
               <Button onClick={addRandomShape} variant="outline">
                 Add Random Shape
@@ -129,20 +141,24 @@ export default function TestThumbnailsPage() {
                 className="bg-white"
               >
                 <Layer>
-                  {/* Initial shapes */}
+                  {/* Initial shapes for testing thumbnail generation */}
                   <Rect
                     x={50}
                     y={50}
                     width={100}
                     height={80}
-                    fill="blue"
+                    fill="#3B82F6"
+                    stroke="#1E40AF"
+                    strokeWidth={2}
                     draggable
                   />
                   <Circle
                     x={200}
                     y={100}
                     radius={40}
-                    fill="red"
+                    fill="#EF4444"
+                    stroke="#DC2626"
+                    strokeWidth={2}
                     draggable
                   />
                   <Rect
@@ -150,7 +166,29 @@ export default function TestThumbnailsPage() {
                     y={150}
                     width={80}
                     height={120}
-                    fill="green"
+                    fill="#10B981"
+                    stroke="#059669"
+                    strokeWidth={2}
+                    draggable
+                  />
+                  {/* Add some shapes at the edges to test bounds calculation */}
+                  <Circle
+                    x={450}
+                    y={50}
+                    radius={25}
+                    fill="#F59E0B"
+                    stroke="#D97706"
+                    strokeWidth={2}
+                    draggable
+                  />
+                  <Rect
+                    x={20}
+                    y={350}
+                    width={60}
+                    height={30}
+                    fill="#8B5CF6"
+                    stroke="#7C3AED"
+                    strokeWidth={2}
                     draggable
                   />
                 </Layer>
@@ -166,15 +204,15 @@ export default function TestThumbnailsPage() {
             </p>
 
             <div className="mb-4 space-x-2">
-              <Button 
-                onClick={handleGenerateThumbnail} 
+              <Button
+                onClick={handleGenerateThumbnail}
                 disabled={isGenerating}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {isGenerating ? 'Generating...' : 'Generate Thumbnail'}
               </Button>
-              <Button 
-                onClick={handleGenerateAndUpload} 
+              <Button
+                onClick={handleGenerateAndUpload}
                 disabled={isGenerating}
                 variant="outline"
               >
@@ -203,7 +241,7 @@ export default function TestThumbnailsPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <h3 className="font-medium text-gray-900 mb-2">Thumbnail URL:</h3>
                   <code className="block bg-gray-100 p-2 rounded text-xs break-all">
@@ -235,14 +273,18 @@ export default function TestThumbnailsPage() {
             <li>Check the browser console for detailed logs</li>
             <li>Verify the thumbnail URL is accessible</li>
           </ol>
-          
+
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-medium text-blue-900 mb-2">Expected Behavior:</h3>
+            <h3 className="font-medium text-blue-900 mb-2">Expected Behavior (High Quality):</h3>
             <ul className="list-disc list-inside space-y-1 text-blue-800 text-sm">
-              <li>Thumbnail should be generated as JPEG with ~60% quality</li>
-              <li>File size should be under 100KB</li>
-              <li>Image should be uploaded to project-thumbnails bucket</li>
-              <li>Public URL should be returned and image should display</li>
+              <li>Thumbnail generated as high-quality JPEG (85-90% quality)</li>
+              <li>All canvas objects should be visible (auto-zoom to fit)</li>
+              <li>Light gray (#FAFAFA) background applied</li>
+              <li>Higher resolution (2x pixel ratio) for crisp images</li>
+              <li>File size should be under 200KB</li>
+              <li>600x400px maximum dimensions with proper aspect ratio</li>
+              <li>Image uploaded to project-thumbnails bucket</li>
+              <li>Public URL returned and image displays clearly</li>
             </ul>
           </div>
         </div>

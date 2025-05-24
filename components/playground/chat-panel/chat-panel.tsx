@@ -2,31 +2,64 @@
 
 import { useEffect, useRef } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
+
 import { MessageRenderer } from "./MessageRenderer"
 import ChatInput from "./chat-input/index"
 import { useChatStore } from "@/store/chatStore"
-import { CheckCircle, CircleCheck, ImageIcon, Store } from "lucide-react"
+import { CircleCheck, Store } from "lucide-react"
 import { useSessionStore } from "@/store/sessionStore"
 import { SidebarToggle } from "@/components/playground/sidebar-toggle"
 import { useCanvasStore } from "@/store/canvasStore"
 import Link from "next/link"
 import { ProjectTitleDropdown } from "@/components/playground/project-title-dropdown"
 import { generateImageFromPrompt } from '@/lib/generate-image'
-import { CommandHelp } from "@/components/ui/command-help"
+
+import { useChatMessages } from "@/lib/chat-swr"
+import { useProjectStore } from "@/store/projectStore"
+import { ChatLoadingSkeleton } from "@/components/ui/loading-skeleton"
+import { ChatErrorBanner } from "@/components/ui/error-banner"
 
 export function ChatPanel() {
   const messages = useChatStore((state) => state.messages)
+  const setMessages = useChatStore((state) => state.setMessages)
   const addMessage = useChatStore((state) => state.addMessage)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { projectName, setProjectName } = useSessionStore()
-  const { isSidebarCollapsed } = useCanvasStore()
+  const { setProjectName } = useSessionStore()
+  const { currentProjectId } = useProjectStore()
+  const hasHydratedRef = useRef(false)
+
+  // Use SWR for chat data fetching with loading and error states
+  const {
+    messages: swrMessages,
+    error: loadError,
+    isLoading,
+    isValidating,
+    revalidate
+  } = useChatMessages(currentProjectId)
 
   // Debug logging for messages
   console.log(`🔥 ChatPanel - Messages count: ${messages.length}`);
+  console.log(`🔥 ChatPanel - SWR Messages count: ${swrMessages.length}`);
+  console.log(`🔥 ChatPanel - Loading: ${isLoading}, Error: ${!!loadError}`);
+  console.log(`🔥 ChatPanel - Current Project ID: ${currentProjectId}`);
   messages.forEach((msg, index) => {
     console.log(`🔥 ChatPanel - Message ${index}: ${msg.id}, type: ${msg.type}, role: ${msg.role}`);
   });
+
+  // FIXED: Hydrate chat store with SWR data when available
+  // This should happen when SWR finishes loading, regardless of message count
+  useEffect(() => {
+    if (!isLoading && currentProjectId && swrMessages !== undefined && !hasHydratedRef.current) {
+      console.log('[ChatPanel] 💾 Hydrating chat store with SWR data:', swrMessages.length, 'messages');
+      setMessages(swrMessages);
+      hasHydratedRef.current = true;
+    }
+  }, [swrMessages, isLoading, currentProjectId, setMessages]);
+
+  // Reset hydration flag when project changes
+  useEffect(() => {
+    hasHydratedRef.current = false;
+  }, [currentProjectId]);
 
   // Set project name from localStorage if it exists
   useEffect(() => {
@@ -42,7 +75,7 @@ export function ChatPanel() {
   useEffect(() => {
     const initialMessageStr = localStorage.getItem("popmint-initial-message")
 
-    if (initialMessageStr && messages.length === 0) {
+    if (initialMessageStr && messages.length === 0 && hasHydratedRef.current) {
       try {
         const initialMessage = JSON.parse(initialMessageStr)
         // Add the initial message to the chat
@@ -104,7 +137,7 @@ export function ChatPanel() {
         console.error("Error parsing initial message:", error)
       }
     }
-  }, [addMessage, messages.length])
+  }, [addMessage])
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -116,10 +149,7 @@ export function ChatPanel() {
     }
   }, [messages]);
 
-  // Check if there are any messages with images
-  const hasImageMessages = messages.some(message =>
-    message.imageUrls && message.imageUrls.length > 0
-  );
+
 
   return (
     <div className="flex flex-col bg-transparent py-2 px-2 h-full">
@@ -147,7 +177,19 @@ export function ChatPanel() {
       <div className="flex-1 overflow-hidden rounded-[10px]">
         <ScrollArea className="h-full px-1 py-2 overflow-x-visible">
           <div className="flex flex-col gap-3 w-full overflow-x-visible">
-            {messages.length === 0 ? (
+            {/* Show error banner if chat loading failed */}
+            {loadError && (
+              <ChatErrorBanner
+                error={loadError}
+                onRetry={revalidate}
+                isRetrying={isValidating}
+              />
+            )}
+
+            {/* Show loading skeleton while loading initial data */}
+            {isLoading && messages.length === 0 ? (
+              <ChatLoadingSkeleton />
+            ) : messages.length === 0 ? (
               <div className="h-[calc(100%-80px)] flex flex-col items-center justify-center gap-4">
                 <div className="bg-gray-50 border border-gray-100 rounded-lg p-5 text-sm max-w-md space-y-4">
                   <div className="font-medium text-gray-900">Welcome to Popmint!</div>

@@ -26,14 +26,14 @@ export async function withRetry<T>(
   options: RetryOptions = {}
 ): Promise<T> {
   const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
-  let lastError: Error;
+  let lastError: Error = new Error('Operation failed after all retry attempts');
 
   for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error as Error;
-      
+
       // Don't retry on the last attempt
       if (attempt === config.maxRetries) {
         break;
@@ -104,7 +104,7 @@ export async function apiCall<T>(
 
     if (!response.ok) {
       const errorMessage = `API call failed: ${response.status} ${response.statusText}`;
-      
+
       if (isRetryableStatusCode(response.status)) {
         throw createRetryableError(errorMessage, response.status);
       } else {
@@ -124,7 +124,7 @@ export function debounce<T extends (...args: any[]) => any>(
   delay: number
 ): (...args: Parameters<T>) => void {
   let timeoutId: NodeJS.Timeout;
-  
+
   return (...args: Parameters<T>) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func(...args), delay);

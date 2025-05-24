@@ -37,11 +37,9 @@ export default function ClientSidePlayground({ projectId }: ClientSidePlayground
       console.log('[Playground] 🧪 Testing persistence manually...');
 
       // First, run a health check
-      const { getPersistenceManager } = await import('@/lib/persistence-manager');
-      const manager = getPersistenceManager();
-      if (manager) {
-        await manager.debugPersistenceHealth();
-      }
+      const { getAutoPersistenceStatus } = await import('@/lib/auto-persistence');
+      const status = getAutoPersistenceStatus();
+      console.log('[Playground] Auto-persistence status:', status);
 
       // Test chat message persistence
       const chatStore = useChatStore.getState();
@@ -320,7 +318,7 @@ export default function ClientSidePlayground({ projectId }: ClientSidePlayground
                 const urlMatch = initialMessage.content.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
                 if (urlMatch && urlMatch.length > 0) {
                   productUrl = urlMatch[0];
-                  if (!productUrl.startsWith('http')) {
+                  if (productUrl && !productUrl.startsWith('http')) {
                     productUrl = 'https://' + productUrl;
                   }
                 }

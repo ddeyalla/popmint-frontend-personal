@@ -297,7 +297,7 @@ export const useProjectStore = create<ProjectState>()(
           let projectExists = false;
 
           try {
-            const response = await apiCall(`/api/projects/${projectId}`);
+            const response = await apiCall<{ project: any }>(`/api/projects/${projectId}`);
             if (response.project) {
               console.log('[ProjectStore] Project found by ID:', response.project.id);
               actualProjectId = response.project.id;
@@ -308,7 +308,7 @@ export const useProjectStore = create<ProjectState>()(
 
             // If direct lookup fails, try by session ID (for backward compatibility)
             try {
-              const sessionResponse = await apiCall(`/api/projects/by-session/${projectId}`);
+              const sessionResponse = await apiCall<{ project_id: string }>(`/api/projects/by-session/${projectId}`);
               actualProjectId = sessionResponse.project_id;
               console.log('[ProjectStore] Project found/created by session ID, actual ID:', actualProjectId);
               projectExists = true;
@@ -318,15 +318,15 @@ export const useProjectStore = create<ProjectState>()(
             }
           }
 
-          // Initialize persistence for this project using the actual project ID
-          console.log('[ProjectStore] 🔧 Importing persistence manager...');
-          const { initializePersistence } = await import('@/lib/persistence-manager');
-          console.log('[ProjectStore] 🚀 Initializing persistence for project:', actualProjectId);
-          const success = await initializePersistence(actualProjectId);
-          console.log('[ProjectStore] 📊 Persistence initialization result:', success);
+          // Initialize auto-persistence for this project using the actual project ID
+          console.log('[ProjectStore] 🔧 Importing auto-persistence...');
+          const { initializeAutoPersistence } = await import('@/lib/auto-persistence');
+          console.log('[ProjectStore] 🚀 Initializing auto-persistence for project:', actualProjectId);
+          const success = await initializeAutoPersistence(actualProjectId);
+          console.log('[ProjectStore] 📊 Auto-persistence initialization result:', success);
 
           if (!success) {
-            console.warn('[ProjectStore] Persistence initialization failed, but continuing');
+            console.warn('[ProjectStore] Auto-persistence initialization failed, but continuing');
             // Don't throw error - allow the app to continue without persistence
           }
 

@@ -2,6 +2,7 @@
 
 import { KonvaObject } from '@/store/canvasStore';
 import { apiCall, withRetry, offlineQueue, debounce } from '@/lib/persistence-utils';
+import { uploadImageFromUrl, isSupabaseStorageUrl } from '@/lib/supabase-storage';
 
 export interface CanvasPersistenceConfig {
   projectId: string;
@@ -63,6 +64,63 @@ function apiObjectToStoreFormat(apiObject: any): KonvaObject {
 }
 
 /**
+ * Upload image to Supabase Storage if it's an external URL
+ */
+export async function processImageForStorage(
+  projectId: string,
+  object: KonvaObject
+): Promise<KonvaObject> {
+  // Only process image objects with external URLs
+  if (object.type !== 'image' || !object.src) {
+    return object;
+  }
+
+  // Skip if already a Supabase Storage URL
+  if (isSupabaseStorageUrl(object.src)) {
+    console.log('[CanvasPersistence] Image already in storage:', object.src);
+    return object;
+  }
+
+  // Skip if it's a blob URL (local file)
+  if (object.src.startsWith('blob:')) {
+    console.log('[CanvasPersistence] Skipping blob URL (local file):', object.src);
+    return object;
+  }
+
+  // Skip if it's a data URL
+  if (object.src.startsWith('data:')) {
+    console.log('[CanvasPersistence] Skipping data URL:', object.src.substring(0, 50) + '...');
+    return object;
+  }
+
+  try {
+    console.log('[CanvasPersistence] Uploading image to storage:', object.src);
+    
+    const result = await uploadImageFromUrl(projectId, object.src);
+    
+    if (result.success && result.url) {
+      console.log('[CanvasPersistence] Image uploaded successfully:', {
+        original: object.src,
+        storage: result.url,
+      });
+      
+      return {
+        ...object,
+        src: result.url,
+      };
+    } else {
+      console.error('[CanvasPersistence] Failed to upload image:', result.error);
+      // Return original object if upload fails
+      return object;
+    }
+  } catch (error) {
+    console.error('[CanvasPersistence] Error uploading image:', error);
+    // Return original object if upload fails
+    return object;
+  }
+}
+
+/**
  * Save a new canvas object to the server
  */
 export async function saveCanvasObject(
@@ -88,23 +146,26 @@ export async function saveCanvasObject(
       src: object.src ? 'present' : 'none',
     });
 
+    // Process image for storage upload if needed
+    const processedObject = await processImageForStorage(projectId, object);
+
     // Ensure type is one of the allowed values
-    let type = object.type;
+    let type = processedObject.type;
     if (!['image', 'text', 'shape'].includes(type)) {
       console.warn(`[CanvasPersistence] ⚠️ Invalid type "${type}", defaulting to "shape"`);
       type = 'shape';
     }
 
     const apiObject = {
-      ...objectToApiFormat(object),
+      ...objectToApiFormat(processedObject),
       type: type, // Override with validated type
     };
 
     console.log('[CanvasPersistence] 🔍 DEBUG: Converted to API format:', {
-      project_id: apiObject.project_id,
       type: apiObject.type,
       x: apiObject.x,
       y: apiObject.y,
+      src: apiObject.src ? (apiObject.src.length > 50 ? apiObject.src.substring(0, 50) + '...' : apiObject.src) : 'none',
       props_keys: Object.keys(apiObject.props || {}),
     });
 

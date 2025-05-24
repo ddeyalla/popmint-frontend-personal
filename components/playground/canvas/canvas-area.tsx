@@ -13,7 +13,7 @@ import { ZoomIn, ZoomOut, Maximize, Layout } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CanvasToolbar } from "./canvas-toolbar" // Import CanvasToolbar
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useThumbnail } from "@/hooks/useThumbnail"
+
 import { cn } from "@/lib/utils"
 
 // Constants
@@ -55,7 +55,7 @@ export function CanvasArea() {
     toolMode,
     duplicateObject,
     isSidebarCollapsed,
-    setThumbnailCallback,
+
   } = useCanvasStore()
   const messages = useChatStore((state) => state.messages)
   const { currentProjectId } = useProjectStore()
@@ -82,28 +82,7 @@ export function CanvasArea() {
   const lastPinchDistance = useRef<number | null>(null);
   const lastPinchMidpoint = useRef<{ x: number; y: number } | null>(null);
 
-  // Initialize thumbnail generation hook
-  const { scheduleSnapshot } = useThumbnail({
-    projectId: currentProjectId || '',
-    stageRef,
-    enabled: !!currentProjectId,
-    debounceDelay: 2000,
-    onSuccess: (thumbnailUrl) => {
-      console.log('[CanvasArea] Thumbnail generated successfully:', thumbnailUrl);
-    },
-    onError: (error) => {
-      console.error('[CanvasArea] Thumbnail generation failed:', error);
-    },
-  });
-
-  // Connect thumbnail callback to canvas store
-  useEffect(() => {
-    if (currentProjectId) {
-      setThumbnailCallback(scheduleSnapshot);
-    } else {
-      setThumbnailCallback(() => {});
-    }
-  }, [currentProjectId, scheduleSnapshot, setThumbnailCallback]); // scheduleSnapshot is now stable
+  // Legacy thumbnail generation removed - now using 2x2 image grid
 
   const debouncedResize = useCallback((entries: ResizeObserverEntry[] = []) => {
     if (!containerRef.current || !stageRef.current) return;
@@ -721,8 +700,7 @@ export function CanvasArea() {
                       setDragStartPositions({});
                       // e.target.getStage()?.draggable(true); // Re-enable if disabled
 
-                      // Schedule thumbnail generation after drag
-                      scheduleSnapshot();
+                      // Legacy thumbnail generation removed
                     }}
                     // Position the group based on the average of its children or a reference point if needed.
                     // For simplicity, starting at (0,0) and letting transformer handle relative positions.

@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-export type KonvaObjectType = "image" | "text"
+export type KonvaObjectType = "image" | "text" | "shape"
 
 export interface KonvaObject {
   id: string
@@ -9,6 +9,7 @@ export interface KonvaObject {
   y: number
   width?: number
   height?: number
+  rotation?: number
   src?: string
   text?: string
   fontSize?: number
@@ -28,8 +29,7 @@ type CanvasState = {
   stageOffset: { x: number; y: number }
   toolMode: 'move' | 'hand' | 'scale'
   isSidebarCollapsed: boolean
-  thumbnailCallback?: () => void
-  setThumbnailCallback: (callback: () => void) => void
+
   setToolMode: (mode: 'move' | 'hand' | 'scale') => void
   setStageOffset: (offset: { x: number; y: number }) => void
   updateStageOffset: (delta: { x: number; y: number }) => void
@@ -61,8 +61,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   stageOffset: { x: 0, y: 0 },
   toolMode: 'move',
   isSidebarCollapsed: false,
-  thumbnailCallback: undefined,
-  setThumbnailCallback: (callback) => set({ thumbnailCallback: callback }),
+
   setToolMode: (mode) => set({ toolMode: mode }),
 
   setStageOffset: (offset) => set({ stageOffset: offset }),
@@ -102,11 +101,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       })
 
-      // Trigger thumbnail generation
-      const { thumbnailCallback } = get()
-      if (thumbnailCallback) {
-        thumbnailCallback()
-      }
+      // Legacy thumbnail generation removed
     } catch (error) {
       console.error("Error adding object:", error)
     }
@@ -241,11 +236,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       })
       get().saveState()
 
-      // Trigger thumbnail generation
-      const { thumbnailCallback } = get()
-      if (thumbnailCallback) {
-        thumbnailCallback()
-      }
+      // Legacy thumbnail generation removed
     } catch (error) {
       console.error("Error updating object:", error)
     }
@@ -263,11 +254,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       })
       get().saveState()
 
-      // Trigger thumbnail generation
-      const { thumbnailCallback } = get()
-      if (thumbnailCallback) {
-        thumbnailCallback()
-      }
+      // Legacy thumbnail generation removed
     } catch (error) {
       console.error("Error deleting object(s):", error)
     }

@@ -2,6 +2,7 @@
 
 import { ChatMessage } from '@/store/chatStore';
 import { apiCall, withRetry, offlineQueue } from '@/lib/persistence-utils';
+import { debouncedSyncChat, optimisticUpdateChat } from '@/lib/chat-swr';
 
 export interface ChatPersistenceConfig {
   projectId: string;
@@ -10,6 +11,32 @@ export interface ChatPersistenceConfig {
 
 // Map local message IDs to server IDs
 const localToServerIdMap = new Map<string, string>();
+
+/**
+ * Determine if a message type should be persisted
+ */
+function shouldPersistMessage(message: ChatMessage): boolean {
+  // Don't persist temporary messages
+  if (message.isTemporary) {
+    return false;
+  }
+
+  // Don't persist complex UI-only message types that can't be properly restored
+  const nonPersistableTypes = [
+    'ad_generation',      // Too complex, loses adData
+    'agent_bubble',       // Too complex, loses agentData
+    'temporary_status',   // Temporary by nature
+    'ad_step_complete',   // Temporary progress indicator
+    'agent_progress'      // Temporary progress indicator
+  ];
+
+  if (nonPersistableTypes.includes(message.type)) {
+    console.log('[ChatPersistence] ⏭️ Skipping non-persistable message type:', message.type);
+    return false;
+  }
+
+  return true;
+}
 
 /**
  * Convert a local chat message to the format expected by the API
@@ -126,7 +153,7 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
   let isInitialized = false;
 
   return (chatStore: any) => {
-    // Subscribe to message changes
+    // Subscribe to message changes with debounced sync
     chatStore.subscribe(
       (state: any) => state.messages,
       async (currentMessages: ChatMessage[], previousMessages: ChatMessage[]) => {
@@ -150,35 +177,48 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
           (current) => !previousMessages.some((prev) => prev.id === current.id)
         );
 
-        // Save each new message
-        for (const message of newMessages) {
-          console.log('[ChatPersistence] 🔍 Processing message:', {
-            id: message.id,
-            role: message.role,
-            type: message.type,
-            isTemporary: message.isTemporary,
-            contentLength: message.content.length,
-          });
-
-          // Skip if this is a temporary message
-          if (message.isTemporary) {
-            console.log('[ChatPersistence] ⏭️ Skipping temporary message:', message.id);
-            continue;
+        // Filter messages that need to be saved (exclude temporary, non-persistable, and already persisted)
+        const messagesToSave = newMessages.filter(message => {
+          // Check if message should be persisted (handles temporary and complex types)
+          if (!shouldPersistMessage(message)) {
+            return false;
           }
 
           // Skip if this message already has a server ID (UUID format)
           const isServerMessage = message.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
           if (isServerMessage) {
             console.log('[ChatPersistence] ⏭️ Skipping server message (already persisted):', message.id);
-            continue;
+            return false;
           }
 
+          return true;
+        });
+
+        console.log('[ChatPersistence] 🔍 Messages to save after filtering:', messagesToSave.length);
+
+        // Use debounced sync for better performance (500ms as per documentation)
+        if (messagesToSave.length > 0) {
+          console.log('[ChatPersistence] 🔄 Using debounced sync for new messages');
+          debouncedSyncChat(config.projectId, messagesToSave, 500);
+        }
+
+        // FIXED: Use traditional save instead of optimistic updates to avoid SWR conflicts
+        for (const message of messagesToSave) {
+          console.log('[ChatPersistence] 🔍 Processing message for save:', {
+            id: message.id,
+            role: message.role,
+            type: message.type,
+            contentLength: message.content.length,
+          });
+
           try {
-            console.log('[ChatPersistence] 💾 Attempting to save new message:', {
+            console.log('[ChatPersistence] 💾 Attempting to save message:', {
               id: message.id,
               type: message.type,
               role: message.role,
             });
+
+            // Use traditional save to avoid conflicts with SWR
             const serverMessage = await saveChatMessage(config.projectId, message);
 
             if (serverMessage) {
@@ -199,7 +239,8 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
               messageId: message.id,
               error: error instanceof Error ? error.message : error,
             });
-            // The message will be retried via the offline queue
+            // Add to offline queue for retry
+            offlineQueue.add(() => saveChatMessage(config.projectId, message));
           }
         }
       }
