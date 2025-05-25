@@ -6,6 +6,10 @@ import { cn } from '@/lib/utils';
 import { ChatMessage, AgentBubbleSection, SectionStatus } from '@/store/chatStore';
 import { renderLucideIcon } from '@/lib/icon-utils';
 import { formatJsonData, cleanString, truncateText, isConceptData, extractConcepts } from '@/lib/format-utils';
+import { motion } from 'framer-motion';
+import { bubbleVariants, staggerContainer, inProgressPulse, inProgressGlow } from '@/lib/motion-variants';
+import { useLiveTimer, useCompletionTimer } from '@/hooks/useLiveTimer';
+import { StatusPill, StatusType } from '@/components/ui/status-pill';
 
 interface AgentBubbleProps {
   message: ChatMessage;
@@ -19,42 +23,64 @@ export function AgentBubble({ message }: AgentBubbleProps) {
 
   const { type, title, icon, gradient, startTime, endTime, sections, isCompleted } = agentData;
 
-  // Calculate duration if completed
-  const duration = endTime && startTime
-    ? Math.round((endTime.getTime() - startTime.getTime()) / 1000)
-    : null;
+  // Use live timer hooks
+  const liveTimer = useLiveTimer(isCompleted ? null : startTime);
+  const completionTimer = useCompletionTimer(startTime, endTime);
+
+  // Play completion sound when agent task completes
+  useEffect(() => {
+    if (isCompleted && completionTimer) {
+      import('@/lib/playSFX').then(({ playAgentComplete }) => {
+        playAgentComplete();
+      });
+    }
+  }, [isCompleted, completionTimer]);
+
+  // Determine if agent is in progress (has active sections or not completed)
+  const isInProgress = !isCompleted && sections.some(section => section.status === 'active');
 
   return (
-    <div className="flex w-full justify-start overflow-x-visible">
-      <div className={cn(
-        "max-w-[85%] rounded-[10px] p-3 shadow-sm",
-        gradient || "bg-gradient-to-b from-blue-50 to-white"
-      )}>
+    <motion.div
+      variants={bubbleVariants.agent}
+      initial="hidden"
+      animate="show"
+      className="flex w-full justify-start overflow-x-visible mb-6"
+    >
+      <motion.div
+        className={cn(
+          "max-w-3xl rounded-[15px] px-5 py-4 shadow-sm border border-[#EFEFEF] border-l-4 border-l-pm-indigo", // max-w-3xl, px-5 py-4, border-l-4 as specified
+          "bg-pm-bubble-agent" // Use new design token
+        )}
+        animate={isInProgress ? inProgressPulse : {}}
+        style={isInProgress ? {
+          boxShadow: "0 0 0 0 rgba(99, 102, 241, 0.1)"
+        } : {}}
+      >
         {/* Header */}
-        <div className="flex justify-between items-center mb-2">
-          <div className="flex items-center gap-2">
-            {renderLucideIcon(icon, { className: "w-5 h-5 text-blue-600" })}
-            <h3 className="font-medium text-gray-800">{title}</h3>
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-3">
+            {renderLucideIcon(icon, { className: "w-5 h-5 text-pm-indigo" })} {/* 20px icon as specified */}
+            <h3 className="font-medium text-gray-800 text-base">{title}</h3>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Timer or completion status */}
-            {duration !== null ? (
-              <div className="flex items-center text-xs text-gray-500">
-                <Clock className="w-3 h-3 mr-1" />
-                <span>Completed in {duration}s</span>
+          <div className="flex items-center gap-3">
+            {/* Timer display */}
+            {completionTimer ? (
+              <div className="flex items-center text-xs text-pm-emerald font-medium">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                <span>{completionTimer}</span>
               </div>
-            ) : (
-              <div className="flex items-center text-xs text-gray-500">
+            ) : liveTimer ? (
+              <div className="flex items-center text-xs text-pm-indigo">
                 <Clock className="w-3 h-3 mr-1" />
-                <span>00:00</span>
+                <span>{liveTimer}</span>
               </div>
-            )}
+            ) : null}
 
             {/* Expand/collapse button */}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 transition-colors"
             >
               {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
@@ -63,17 +89,22 @@ export function AgentBubble({ message }: AgentBubbleProps) {
 
         {/* Sections */}
         {isExpanded && (
-          <div className="space-y-3 mt-2">
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="show"
+            className="space-y-2 mt-3"
+          >
             {sections.map(section => (
               <AgentBubbleSectionComponent
                 key={section.id}
                 section={section}
               />
             ))}
-          </div>
+          </motion.div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -116,21 +147,33 @@ function AgentBubbleSectionComponent({ section }: { section: AgentBubbleSection 
     ? truncateText(formattedStringData, 300)
     : formattedStringData;
 
+  // Map section status to StatusPill status
+  const getStatusType = (status: SectionStatus): StatusType => {
+    switch (status) {
+      case 'pending': return 'pending';
+      case 'active': return 'active';
+      case 'completed': return 'completed';
+      case 'error': return 'error';
+      default: return 'pending';
+    }
+  };
+
   return (
-    <div className="bg-white/50 backdrop-blur-sm rounded-[10px] p-3 shadow-sm">
+    <motion.div
+      variants={bubbleVariants.ai}
+      className="bg-white shadow-xs rounded-[15px] px-3 py-2 border border-[#EFEFEF]" // bg-white + shadow-xs as specified
+    >
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          {renderLucideIcon(icon, { className: "w-4 h-4 text-blue-600" })}
+          {renderLucideIcon(icon, { className: "w-4 h-4 text-pm-indigo" })} {/* 16px icon as specified */}
           <span className="font-medium text-gray-800 text-sm">{title}</span>
         </div>
 
-        {/* Status indicator */}
-        <div className="text-xs">
-          {renderStatusIndicator(status)}
-        </div>
+        {/* Status pill */}
+        <StatusPill status={getStatusType(status)} />
       </div>
 
-      <p className="text-xs text-gray-600">{description}</p>
+      <p className="text-xs text-gray-600 leading-relaxed">{description}</p>
 
       {/* Data display if available and completed */}
       {status === 'completed' && (
@@ -231,7 +274,7 @@ function AgentBubbleSectionComponent({ section }: { section: AgentBubbleSection 
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

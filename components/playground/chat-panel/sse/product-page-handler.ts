@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useChatStore } from '@/store/chatStore';
 import { getAdGenerationStreamUrl } from '@/lib/generate-ad';
 import { useSSEEventHandler } from './event-handler';
+import { useModernSSEEventHandler } from './modern-event-handler';
 
 // Constants for SSE connection
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -22,8 +23,8 @@ export function useProductPageSSE() {
   const reconnectAttemptsRef = useRef<number>(0);
   const currentJobIdRef = useRef<string | null>(null);
 
-  // Get the event handler from the shared hook
-  const { handleSSEEvent } = useSSEEventHandler();
+  // Get the modern event handler from the shared hook
+  const { handleSSEEvent } = useModernSSEEventHandler();
 
   // Helper function to calculate exponential backoff delay
   const calculateBackoffDelay = useCallback((attempt: number, initialDelay: number = INITIAL_RECONNECT_DELAY): number => {

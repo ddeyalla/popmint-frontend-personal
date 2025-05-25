@@ -163,10 +163,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
       timestamp: message.timestamp || new Date(),
     };
 
-    console.log('[ChatStore] 🚀 Adding message:', id, newMessage.role, newMessage.type);
+    console.log('[ChatStore] 🚀 Attempting to add message:', id, newMessage.role, newMessage.type);
     set((state) => {
+      // Check if a message with the same ID already exists
+      const existingMessage = state.messages.find(msg => msg.id === id);
+      if (existingMessage) {
+        console.warn(`[ChatStore] ⚠️ Message with ID ${id} already exists. Skipping add.`, existingMessage);
+        // Optionally, update the existing message here if needed, e.g.:
+        // return {
+        //   messages: state.messages.map(msg => 
+        //     msg.id === id ? { ...msg, ...newMessage, timestamp: msg.timestamp } : msg
+        //   )
+        // };
+        return state; // Do not add if already exists
+      }
+
       console.log('[ChatStore] 📊 Current messages count:', state.messages.length);
-      console.log('[ChatStore] 📊 New messages count:', state.messages.length + 1);
+      console.log('[ChatStore] 📊 New messages count after add:', state.messages.length + 1);
       return {
         messages: [...state.messages, newMessage]
       };

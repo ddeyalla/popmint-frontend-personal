@@ -18,6 +18,7 @@ export interface KonvaObject {
   draggable?: boolean
   stroke?: string
   strokeWidth?: number
+  props?: Record<string, any>
 }
 
 type CanvasState = {
@@ -135,6 +136,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         return;
       }
 
+      // Flag ML backend URLs - they typically start with specific patterns
+      // This helps with persistence as we'll know these need special handling
+      let isMLGeneratedImage = isGeneratedImage;
+      if (!isMLGeneratedImage && typeof src === 'string') {
+        // Check for common ML backend URL patterns
+        const mlPatterns = [
+          '/api/proxy/generate',   // Local API proxy
+          '/generated/',          // ML backend paths
+          'cloudflare-',         // CF worker URLs 
+          '.workers.dev',        // CF worker URLs
+          'popmint-ml',          // Project specific domains
+          'ml-api'               // Project specific paths
+        ];
+        
+        if (mlPatterns.some(pattern => src.includes(pattern))) {
+          console.log('🔍 DEBUG - Detected ML-generated image URL pattern:', src);
+          isMLGeneratedImage = true;
+        }
+      }
+
       // Create a new image element
       const img = new Image()
       img.crossOrigin = "anonymous"
@@ -146,10 +167,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           let finalWidth, finalHeight;
 
           // If this is a generated image, force 512x512 dimensions
-          if (isGeneratedImage) {
+          if (isMLGeneratedImage) {
             finalWidth = 512;
             finalHeight = 512;
-            console.log('🔍 DEBUG - Using fixed dimensions for generated image: 512x512');
+            console.log('🔍 DEBUG - Using fixed dimensions for ML-generated image: 512x512');
           } else {
             // For other images, scale them if needed
             const maxWidth = 400
@@ -159,10 +180,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             console.log('🔍 DEBUG - Calculated image scale:', scale, 'maxWidth:', maxWidth);
           }
 
+          // Add metadata for persistence
+          const metadata = {
+            isMLGenerated: isMLGeneratedImage,
+            originalWidth: img.width,
+            originalHeight: img.height,
+            originalSrc: src
+          };
+
           // Add the object to the store
           console.log('🔍 DEBUG - Adding image object to store with dimensions:',
             'width:', finalWidth,
-            'height:', finalHeight);
+            'height:', finalHeight,
+            'isMLGenerated:', isMLGeneratedImage);
           get().addObject({
             type: "image",
             x,
@@ -170,6 +200,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             width: finalWidth,
             height: finalHeight,
             src,
+            // Store metadata in existing props field
+            props: { metadata }
           })
           console.log('🔍 DEBUG - Image object added to store successfully');
         } catch (error) {
@@ -185,7 +217,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         if (src.startsWith('http') && !src.startsWith('/api/proxy-image')) {
           const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(src)}`;
           console.log('🔍 DEBUG - Trying with proxied URL:', proxiedUrl);
-          get().addImage(proxiedUrl, x, y, isGeneratedImage);
+          get().addImage(proxiedUrl, x, y, isMLGeneratedImage);
           return;
         }
 

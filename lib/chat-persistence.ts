@@ -2,7 +2,6 @@
 
 import { ChatMessage } from '@/store/chatStore';
 import { apiCall, withRetry, offlineQueue } from '@/lib/persistence-utils';
-import { debouncedSyncChat, optimisticUpdateChat } from '@/lib/chat-swr';
 
 export interface ChatPersistenceConfig {
   projectId: string;
@@ -11,6 +10,9 @@ export interface ChatPersistenceConfig {
 
 // Map local message IDs to server IDs
 const localToServerIdMap = new Map<string, string>();
+
+// Track messages that have been successfully saved to avoid duplicates
+const savedMessageIds = new Set<string>();
 
 /**
  * Determine if a message type should be persisted
@@ -67,63 +69,199 @@ function apiMessageToStoreFormat(apiMessage: any): ChatMessage {
 /**
  * Save a chat message to the server
  */
+// Track in-flight message saves to prevent duplicates
+const inProgressSaves = new Map<string, Promise<ChatMessage | null>>();
+
+/**
+ * Clear saved message IDs when store is cleared
+ * Called externally from chatStore when clearMessages is invoked
+ */
+export function clearSavedMessageTracking() {
+  console.log('[ChatPersistence] 🧹 Clearing saved message tracking');
+  savedMessageIds.clear();
+}
+
 export async function saveChatMessage(
   projectId: string,
   message: ChatMessage
 ): Promise<ChatMessage | null> {
-  try {
-    console.log('[ChatPersistence] 🔍 DEBUG: Saving message:', {
-      projectId,
-      messageId: message.id,
-      role: message.role,
-      contentLength: message.content.length,
-      type: message.type,
-      isTemporary: message.isTemporary,
-    });
-
-    const apiMessage = messageToApiFormat(message);
-    console.log('[ChatPersistence] 🔍 DEBUG: Converted to API format:', {
-      role: apiMessage.role,
-      message_type: apiMessage.message_type,
-      content_length: apiMessage.content.length,
-      image_urls_count: apiMessage.image_urls?.length || 0,
-    });
-
-    const response = await apiCall<{ message: any }>(`/api/projects/${projectId}/chat`, {
-      method: 'POST',
-      body: JSON.stringify(apiMessage),
-    });
-
-    console.log('[ChatPersistence] 🔍 DEBUG: API response received:', {
-      success: !!response.message,
-      messageId: response.message?.id,
-    });
-
-    const serverMessage = apiMessageToStoreFormat(response.message);
-
-    // Map local ID to server ID
-    localToServerIdMap.set(message.id, serverMessage.id);
-
-    console.log('[ChatPersistence] ✅ Message saved successfully:', {
-      localId: message.id,
-      serverId: serverMessage.id,
-      timestamp: serverMessage.timestamp,
-    });
-    return serverMessage;
-
-  } catch (error) {
-    console.error('[ChatPersistence] 💥 ERROR saving message:', {
-      projectId,
-      messageId: message.id,
-      error: error instanceof Error ? error.message : error,
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-
-    // Add to offline queue for retry
-    offlineQueue.add(() => saveChatMessage(projectId, message));
-
-    return null;
+  // Create a unique key for this message to prevent duplicate API calls
+  const messageKey = `${projectId}-${message.id}-${message.content.substring(0, 50)}`;
+  
+  // If this exact message is already being saved, return the existing promise
+  if (inProgressSaves.has(messageKey)) {
+    console.log('[ChatPersistence] 🔄 Duplicate save request detected, returning existing promise for:', messageKey);
+    const existingPromise = inProgressSaves.get(messageKey);
+    return existingPromise || null; // Ensure we return ChatMessage | null, not undefined
   }
+
+  // Create a promise for this save operation
+  const savePromise = (async () => {
+    try {
+      console.log('[ChatPersistence] 🔍 DEBUG: Saving message:', {
+        projectId,
+        messageId: message.id,
+        role: message.role,
+        contentLength: message.content.length,
+        type: message.type,
+        isTemporary: message.isTemporary,
+      });
+
+      // Verify project exists or create it before attempting to save messages
+      // This ensures we don't repeatedly try to save messages to non-existent projects
+      let projectExists = false;
+      
+      try {
+        console.log(`[ChatPersistence] 🔍 Checking if project exists: ${projectId}`);
+        
+        // First try a HEAD request which is lightweight
+        const projectResponse = await fetch(`/api/projects/${projectId}`, {
+          method: 'HEAD',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        // If status is 200, project exists
+        if (projectResponse.ok) {
+          console.log(`[ChatPersistence] ✓ Project ${projectId} exists`);
+          projectExists = true;
+        } 
+        // If 404, try to create it
+        else if (projectResponse.status === 404) {
+          console.log(`[ChatPersistence] ⚠️ Project ${projectId} does not exist - attempting to create it`);
+          
+          // Auto-create the project
+          const createResponse = await fetch('/api/projects', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              id: projectId,
+              name: 'Auto-created Project',
+              description: 'Automatically created to fix persistence issue'
+            })
+          });
+          
+          if (createResponse.ok) {
+            console.log(`[ChatPersistence] ✅ Successfully created project ${projectId}`);
+            projectExists = true;
+            
+            // Add a small delay to ensure the project is fully created in the backend
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } else {
+            const errorText = await createResponse.text().catch(() => 'No error details');
+            console.error(`[ChatPersistence] ❌ Failed to create project: ${createResponse.status}`, errorText);
+            // Don't try to save if we can't create the project
+            return null;
+          }
+        }
+        // Other status codes (like 500) indicate a server issue
+        else {
+          console.error(`[ChatPersistence] ❌ Unexpected response when checking project: ${projectResponse.status}`);
+          // For server errors (5xx), it might work on retry after server recovers
+          if (projectResponse.status >= 500 && projectResponse.status < 600) {
+            console.log(`[ChatPersistence] 🔄 Server error (${projectResponse.status}), will try again later`);
+            // Will continue to save attempt, and get added to offline queue if it fails
+          } else {
+            // For other status codes, don't continue
+            return null;
+          }
+        }
+      } catch (error) {
+        console.error(`[ChatPersistence] 💥 Error checking/creating project:`, error);
+        // Only continue if it's a network error that might resolve on retry
+        // Don't add to retry queue for other errors
+        if (error instanceof TypeError && error.message.includes('network')) {
+          console.log(`[ChatPersistence] ⚠️ Network error - will try again later`);
+          // Will continue to save attempt, and get added to offline queue if it fails
+        } else {
+          return null;
+        }
+      }
+      
+      // Skip save if project doesn't exist and couldn't be created
+      if (!projectExists) {
+        console.log(`[ChatPersistence] ⏭️ Skipping message save - project issues must be resolved first`);
+        return null;
+      }
+
+      const apiMessage = messageToApiFormat(message);
+      console.log('[ChatPersistence] 🔍 DEBUG: Converted to API format:', {
+        role: apiMessage.role,
+        message_type: apiMessage.message_type,
+        content_length: apiMessage.content.length,
+        image_urls_count: apiMessage.image_urls?.length || 0,
+      });
+
+      // Add content hash for deduplication
+      const contentHash = typeof window !== 'undefined' ? 
+        await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message.content + message.role))
+          .then(hash => Array.from(new Uint8Array(hash))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('')) :
+        '';  // Fallback for non-browser environments
+      
+      const fullApiMessage = {
+        ...apiMessage,
+        content_hash: contentHash
+      };
+
+      // Use retry for network resilience
+      const response = await withRetry(
+        () => apiCall<{ message: any }>(`/api/projects/${projectId}/chat`, {
+          method: 'POST',
+          body: JSON.stringify(fullApiMessage),
+        })
+      );
+
+      console.log('[ChatPersistence] 🔍 DEBUG: API response received:', {
+        success: !!response.message,
+        messageId: response.message?.id,
+      });
+
+      const serverMessage = apiMessageToStoreFormat(response.message);
+
+      // Map local ID to server ID
+      localToServerIdMap.set(message.id, serverMessage.id);
+
+      console.log('[ChatPersistence] ✅ Message saved successfully:', {
+        localId: message.id,
+        serverId: serverMessage.id,
+        timestamp: serverMessage.timestamp,
+      });
+      return serverMessage;
+    } catch (error) {
+      console.error('[ChatPersistence] 💥 ERROR saving message:', {
+        projectId,
+        messageId: message.id,
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      // Only add to offline queue for non-fatal errors (like network issues)
+      // that have a chance of succeeding on retry
+      if (error instanceof TypeError || 
+          (error instanceof Error && error.message.includes('network'))) {
+        console.log('[ChatPersistence] 🔄 Adding to offline queue for retry');
+        offlineQueue.add(() => saveChatMessage(projectId, message));
+      }
+
+      return null;
+    } finally {
+      // Clean up the in-flight save regardless of success/failure
+      inProgressSaves.delete(messageKey);
+      
+      // Mark this message as saved to prevent duplicates, regardless of success/error
+      // This ensures we don't retry indefinitely and create many duplicates
+      savedMessageIds.add(message.id);
+    }
+  })();
+
+  // Store the promise
+  inProgressSaves.set(messageKey, savePromise);
+  return savePromise;
 }
 
 /**
@@ -150,9 +288,22 @@ export async function loadChatMessages(projectId: string): Promise<ChatMessage[]
  * Create persistence middleware for chat store
  */
 export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
+  // Hook into store's message clear to reset tracking
+  const clearTracking = () => {
+    savedMessageIds.clear();
+    console.log('[ChatPersistence] 🧹 Cleared saved message tracking due to store reset');
+  };
   let isInitialized = false;
 
   return (chatStore: any) => {
+    // Hook into clearMessages to reset tracking
+    const originalClearMessages = chatStore.getState().clearMessages;
+    if (originalClearMessages) {
+      chatStore.getState().clearMessages = () => {
+        originalClearMessages();
+        clearTracking();
+      };
+    }
     // Subscribe to message changes with debounced sync
     chatStore.subscribe(
       (state: any) => state.messages,
@@ -177,32 +328,34 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
           (current) => !previousMessages.some((prev) => prev.id === current.id)
         );
 
-        // Filter messages that need to be saved (exclude temporary, non-persistable, and already persisted)
+        // Filter messages that need to be saved (exclude temporary, non-persistable, server or already-saved)
         const messagesToSave = newMessages.filter(message => {
-          // Check if message should be persisted (handles temporary and complex types)
+          if (savedMessageIds.has(message.id)) {
+            console.log('[ChatPersistence] ⏭️ Skipping already-saved message:', message.id);
+            return false;
+          }
           if (!shouldPersistMessage(message)) {
             return false;
           }
-
-          // Skip if this message already has a server ID (UUID format)
           const isServerMessage = message.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
           if (isServerMessage) {
             console.log('[ChatPersistence] ⏭️ Skipping server message (already persisted):', message.id);
             return false;
           }
-
           return true;
         });
 
         console.log('[ChatPersistence] 🔍 Messages to save after filtering:', messagesToSave.length);
 
-        // Use debounced sync for better performance (500ms as per documentation)
+        // REMOVED: debounced sync to prevent duplicate saves
         if (messagesToSave.length > 0) {
-          console.log('[ChatPersistence] 🔄 Using debounced sync for new messages');
-          debouncedSyncChat(config.projectId, messagesToSave, 500);
+          console.log('[ChatPersistence] 🔄 Processing new messages for save (count: ' + messagesToSave.length + ')');
+          // We'll use direct saves below instead of the debounced approach
+          // This prevents multiple save paths for the same messages
         }
 
-        // FIXED: Use traditional save instead of optimistic updates to avoid SWR conflicts
+        // UPDATED: Use direct saves only - no debounced or optimistic updates
+        // This ensures each message is saved exactly once
         for (const message of messagesToSave) {
           console.log('[ChatPersistence] 🔍 Processing message for save:', {
             id: message.id,
@@ -216,12 +369,19 @@ export function createChatPersistenceMiddleware(config: ChatPersistenceConfig) {
               id: message.id,
               type: message.type,
               role: message.role,
+              contentHash: typeof window !== 'undefined' ? 
+                await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message.content.substring(0, 100) + message.role))
+                  .then(hash => Array.from(new Uint8Array(hash))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('').substring(0, 8)) : 'none',
             });
 
             // Use traditional save to avoid conflicts with SWR
             const serverMessage = await saveChatMessage(config.projectId, message);
 
             if (serverMessage) {
+              // Mark this message as saved to prevent future duplicates
+              savedMessageIds.add(message.id);
               // Replace the local message with the server message
               chatStore.getState().updateMessage(message.id, {
                 id: serverMessage.id,
@@ -276,18 +436,35 @@ export async function hydrateChatStore(
   projectId: string
 ): Promise<boolean> {
   try {
-    console.log('[ChatPersistence] 💾 Starting chat store hydration for project:', projectId);
+    console.log('[ChatPersistence] Hydrating chat store for project:', projectId);
 
-    const messages = await loadChatMessages(projectId);
-    console.log(`[ChatPersistence] 📥 Loaded ${messages.length} messages from server`);
-
-    if (messages.length === 0) {
-      console.log('[ChatPersistence] ✅ No messages to hydrate, chat store ready');
+    // First, check if we already have messages to avoid duplicates
+    const currentMessages = chatStore.getState().messages || [];
+    if (currentMessages.length > 0) {
+      console.log('[ChatPersistence] Chat store already has messages, skipping hydration to prevent duplicates');
       return true;
     }
 
+    const messages = await loadChatMessages(projectId);
+
+    if (messages.length === 0) {
+      console.log('[ChatPersistence] No messages found for project');
+      return true;
+    }
+
+    console.log(`[ChatPersistence] Loaded ${messages.length} messages from server`);
+
+    // Create a map of existing messages to prevent duplicates
+    const existingMessagesMap = new Map<string, boolean>();
+    currentMessages.forEach((msg: ChatMessage) => existingMessagesMap.set(msg.id, true));
+    
+    // Filter out any duplicates that might exist
+    const uniqueMessages = messages.filter(msg => !existingMessagesMap.has(msg.id));
+    
+    console.log(`[ChatPersistence] After deduplication: ${uniqueMessages.length} unique messages`);
+
     // Validate message format before setting
-    const validMessages = messages.filter(msg => {
+    const validMessages = uniqueMessages.filter(msg => {
       if (!msg.id || !msg.role || !msg.content) {
         console.warn('[ChatPersistence] ⚠️ Invalid message format, skipping:', msg);
         return false;

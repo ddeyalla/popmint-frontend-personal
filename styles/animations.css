@@ -62,3 +62,12 @@
 .section-4 {
   animation-delay: 0.4s;
 }
+
+/* Thumbnail hover effects as specified in documentation */
+.thumbnail {
+  @apply rounded-md border border-zinc-100 shadow-sm;
+}
+
+.thumbnail:hover {
+  @apply scale-105 shadow-lg;
+}

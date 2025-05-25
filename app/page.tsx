@@ -450,7 +450,7 @@ export default function Home() {
   return (
     <div className="min-h-screen w-full flex flex-col relative overflow-hidden bg-pastel-swirl bg-cover bg-center">
       {/* Fixed gradient background */}
-      <div className="container mx-auto px-4 py-4 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
+      <div className="container mx-auto px-4 pt-4 pb-2 flex-1 flex flex-col z-100 min-h-[calc(80vh-80px)]">
         {/* Header - Sticky */}
         <header className="flex justify-between items-center sticky z-10">
           <div className="flex items-center gap-1">
@@ -610,8 +610,9 @@ export default function Home() {
       </div>
 
       {/* Project Section - Outside container to stretch full width */}
+      <ProjectSection />
       <div className="mb-20 px-4">
-        <ProjectSection />
+
       </div>
     </div>
   )

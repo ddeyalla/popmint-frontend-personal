@@ -94,12 +94,25 @@ export async function processImageForStorage(
   }
 
   try {
-    console.log('[CanvasPersistence] Uploading image to storage:', object.src);
+    console.log('[CanvasPersistence] 🔍 Detected external image URL that needs storage:', object.src);
     
-    const result = await uploadImageFromUrl(projectId, object.src);
+    // Try to extract image format from URL
+    const urlExtension = object.src.split('.').pop()?.split('?')[0].toLowerCase();
+    const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const extension = validExtensions.includes(urlExtension || '') ? urlExtension : 'jpg';
+    
+    // Generate a more descriptive filename
+    const filename = `${projectId}/image-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${extension}`;
+    
+    console.log('[CanvasPersistence] 🔄 Uploading image to Supabase storage:', {
+      url: object.src,
+      targetFilename: filename
+    });
+    
+    const result = await uploadImageFromUrl(projectId, object.src, filename);
     
     if (result.success && result.url) {
-      console.log('[CanvasPersistence] Image uploaded successfully:', {
+      console.log('[CanvasPersistence] ✅ Image uploaded successfully to Supabase storage:', {
         original: object.src,
         storage: result.url,
       });
@@ -109,14 +122,49 @@ export async function processImageForStorage(
         src: result.url,
       };
     } else {
-      console.error('[CanvasPersistence] Failed to upload image:', result.error);
+      console.error('[CanvasPersistence] ❌ Failed to upload image:', result.error);
       // Return original object if upload fails
       return object;
     }
   } catch (error) {
-    console.error('[CanvasPersistence] Error uploading image:', error);
+    console.error('[CanvasPersistence] ❌ Error uploading image:', error);
     // Return original object if upload fails
     return object;
+  }
+}
+
+/**
+ * Calculate a content hash for an object to assist with deduplication
+ */
+export async function calculateObjectHash(object: KonvaObject): Promise<string> {
+  // Create a simplified object for hashing that only includes the essential properties
+  // This ensures minor UI state changes don't create a new hash
+  const hashableObject = {
+    type: object.type || 'unknown',
+    x: Math.round(object.x || 0), // Round to avoid floating point precision issues
+    y: Math.round(object.y || 0),
+    width: Math.round(object.width || 0),
+    height: Math.round(object.height || 0),
+    src: object.src || '',
+    text: object.text || '',
+    // Omit non-essential properties like draggable, selected, etc.
+  };
+
+  const objectString = JSON.stringify(hashableObject);
+  
+  if (typeof window === 'undefined') {
+    return 'server-hash-' + Date.now(); // Fallback for non-browser environments
+  }
+
+  try {
+    // Use SubtleCrypto for hashing
+    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(objectString));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    // Fallback if crypto API fails
+    console.warn('[CanvasPersistence] Error calculating hash:', e);
+    return 'fallback-hash-' + Date.now();
   }
 }
 
@@ -127,12 +175,16 @@ export async function saveCanvasObject(
   projectId: string,
   object: KonvaObject
 ): Promise<KonvaObject | null> {
-  if (savingObjects.has(object.id)) {
+  // Create a unique save key using project and essential object properties
+  const objectKey = `${projectId}-${object.type || 'unknown'}-${Math.round(object.x || 0)}-${Math.round(object.y || 0)}-${object.src?.substring(0, 20) || ''}`;
+  
+  if (savingObjects.has(object.id) || savingObjects.has(objectKey)) {
     console.log('[CanvasPersistence] Object already being saved:', object.id);
     return null;
   }
 
   savingObjects.add(object.id);
+  savingObjects.add(objectKey);
 
   try {
     console.log('[CanvasPersistence] 🔍 DEBUG: Saving object:', {

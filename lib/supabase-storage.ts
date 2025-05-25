@@ -122,11 +122,8 @@ export async function uploadImageToStorage(
 /**
  * Upload image from URL to Supabase Storage
  * Downloads the image and uploads it to the project's storage bucket
- * TODO: Future enhancement - implement image optimization:
- * - Resize images based on maxWidth/maxHeight
- * - Convert to WebP format for better compression  
- * - Generate multiple sizes for responsive loading
- * - Add progressive JPEG support
+ * 
+ * Enhanced to handle ML-generated image URLs and ensure persistence
  */
 export async function uploadImageFromUrl(
   projectId: string,
@@ -134,26 +131,88 @@ export async function uploadImageFromUrl(
   filename?: string
 ): Promise<ImageUploadResult> {
   try {
-    console.log('[SupabaseStorage] Downloading image from URL:', imageUrl);
+    console.log('[SupabaseStorage] 🔍 Preparing to download image from URL:', imageUrl);
 
-    // Download the image
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download image: ${response.status}`);
+    // Handle proxied URLs before downloading
+    let finalImageUrl = imageUrl;
+    if (imageUrl.startsWith('/api/proxy-image')) {
+      const originalUrl = decodeURIComponent(imageUrl.split('?url=')[1] || '');
+      if (originalUrl) {
+        console.log('[SupabaseStorage] 🔄 Converting proxied URL back to original:', originalUrl);
+        finalImageUrl = originalUrl;
+      }
+    }
+
+    console.log('[SupabaseStorage] 📥 Downloading image from URL:', finalImageUrl);
+
+    // Add fetch options to handle CORS and referrer policies
+    const fetchOptions: RequestInit = {
+      method: 'GET',
+      headers: {
+        'Accept': 'image/*',
+      },
+      mode: 'cors',
+      referrerPolicy: 'no-referrer',
+    };
+
+    // Download the image with retry logic
+    let response;
+    let retries = 0;
+    const maxRetries = 3;
+
+    while (retries < maxRetries) {
+      try {
+        response = await fetch(finalImageUrl, fetchOptions);
+        if (response.ok) break;
+        
+        // If response is not ok, wait and retry
+        retries++;
+        console.log(`[SupabaseStorage] ⚠️ Retry ${retries}/${maxRetries}: Failed to download image (status ${response.status})`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff
+      } catch (fetchError) {
+        // If fetch throws an error, retry
+        retries++;
+        console.log(`[SupabaseStorage] ⚠️ Retry ${retries}/${maxRetries}: Fetch error:`, fetchError);
+        await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+      }
+    }
+
+    // Final check if we have a valid response
+    if (!response || !response.ok) {
+      throw new Error(`Failed to download image after ${maxRetries} attempts: ${response?.status || 'Network error'}`);
     }
 
     const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error('Downloaded image has zero size');
+    }
     
-    // Extract extension from URL or use default
-    const urlParts = imageUrl.split('.');
-    const extension = urlParts.length > 1 ? urlParts[urlParts.length - 1].split('?')[0] : 'jpg';
+    console.log(`[SupabaseStorage] ✅ Image downloaded successfully: ${(blob.size / 1024).toFixed(2)} KB`);
+    
+    // Extract extension from content-type or URL
+    let extension = 'jpg';
+    const contentType = response.headers.get('content-type');
+    if (contentType) {
+      if (contentType.includes('png')) extension = 'png';
+      else if (contentType.includes('gif')) extension = 'gif';
+      else if (contentType.includes('webp')) extension = 'webp';
+      else if (contentType.includes('jpeg') || contentType.includes('jpg')) extension = 'jpg';
+    } else {
+      // Try to extract from URL
+      const urlParts = finalImageUrl.split('.');
+      const urlExtension = urlParts.length > 1 ? urlParts[urlParts.length - 1].split('?')[0].toLowerCase() : '';
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(urlExtension)) {
+        extension = urlExtension === 'jpeg' ? 'jpg' : urlExtension;
+      }
+    }
     
     const finalFilename = filename || `${projectId}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${extension}`;
+    console.log('[SupabaseStorage] 📂 Using filename:', finalFilename);
 
     return await uploadImageToStorage(projectId, blob, finalFilename);
 
   } catch (error) {
-    console.error('[SupabaseStorage] Error uploading from URL:', error);
+    console.error('[SupabaseStorage] 💥 Error uploading from URL:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

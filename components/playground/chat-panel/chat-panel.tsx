@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { MessageRenderer } from "./MessageRenderer"
+import { ModernMessageRenderer } from "./ModernMessageRenderer"
+import { ModernToggleBanner } from "./ModernToggleBanner"
 import ChatInput from "./chat-input/index"
 import { useChatStore } from "@/store/chatStore"
 import { CircleCheck, Store } from "lucide-react"
@@ -13,20 +15,27 @@ import { useCanvasStore } from "@/store/canvasStore"
 import Link from "next/link"
 import { ProjectTitleDropdown } from "@/components/playground/project-title-dropdown"
 import { generateImageFromPrompt } from '@/lib/generate-image'
+import { messageQueue } from '@/lib/message-queue'
 
 import { useChatMessages } from "@/lib/chat-swr"
 import { useProjectStore } from "@/store/projectStore"
 import { ChatLoadingSkeleton } from "@/components/ui/loading-skeleton"
 import { ChatErrorBanner } from "@/components/ui/error-banner"
+import { ScrollToBottom } from "@/components/ui/scroll-to-bottom"
 
 export function ChatPanel() {
   const messages = useChatStore((state) => state.messages)
   const setMessages = useChatStore((state) => state.setMessages)
   const addMessage = useChatStore((state) => state.addMessage)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const { setProjectName } = useSessionStore()
   const { currentProjectId } = useProjectStore()
   const hasHydratedRef = useRef(false)
+
+  // Scroll state management
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 
   // Use SWR for chat data fetching with loading and error states
   const {
@@ -37,6 +46,21 @@ export function ChatPanel() {
     revalidate
   } = useChatMessages(currentProjectId)
 
+  // Scroll handling functions
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
+
+    setIsNearBottom(nearBottom);
+    setShowScrollToBottom(!nearBottom && messages.length > 0);
+  }, [messages.length]);
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
   // Debug logging for messages
   console.log(`🔥 ChatPanel - Messages count: ${messages.length}`);
   console.log(`🔥 ChatPanel - SWR Messages count: ${swrMessages.length}`);
@@ -45,6 +69,18 @@ export function ChatPanel() {
   messages.forEach((msg, index) => {
     console.log(`🔥 ChatPanel - Message ${index}: ${msg.id}, type: ${msg.type}, role: ${msg.role}`);
   });
+
+  // Initialize message queue
+  useEffect(() => {
+    messageQueue.initialize((message) => {
+      addMessage(message);
+    });
+
+    // Clear queue when component unmounts or project changes
+    return () => {
+      messageQueue.clear();
+    };
+  }, [currentProjectId, addMessage]);
 
   // FIXED: Hydrate chat store with SWR data when available
   // This should happen when SWR finishes loading, regardless of message count
@@ -139,15 +175,28 @@ export function ChatPanel() {
     }
   }, [addMessage])
 
-  // Scroll to bottom when messages change
+  // Smart scroll to bottom when messages change
   useEffect(() => {
-    if (messagesEndRef.current) {
-      console.log('🔍 DEBUG - Scrolling to bottom of chat');
+    if (isNearBottom && messagesEndRef.current) {
+      console.log('🔍 DEBUG - Auto-scrolling to bottom of chat');
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
-  }, [messages]);
+  }, [messages, isNearBottom]);
+
+  // Play sound effects for new messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant' && !lastMessage.isTemporary) {
+        // Play receive sound for assistant messages
+        import('@/lib/playSFX').then(({ playMessageReceive }) => {
+          playMessageReceive();
+        });
+      }
+    }
+  }, [messages.length]);
 
 
 
@@ -174,9 +223,16 @@ export function ChatPanel() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-hidden rounded-[10px]">
-        <ScrollArea className="h-full px-1 py-2 overflow-x-visible">
-          <div className="flex flex-col gap-3 w-full overflow-x-visible">
+      <div className="flex-1 overflow-hidden rounded-[10px] relative">
+        <ScrollArea
+          className="h-full px-1 py-2 overflow-x-visible"
+          onScroll={handleScroll}
+          ref={scrollAreaRef}
+        >
+          <div className="flex flex-col w-full overflow-x-visible">
+            {/* Modern Toggle Banner */}
+            <ModernToggleBanner />
+
             {/* Show error banner if chat loading failed */}
             {loadError && (
               <ChatErrorBanner
@@ -214,7 +270,7 @@ export function ChatPanel() {
               </div>
             ) : (
               messages.map((message) => (
-                <MessageRenderer key={message.id} message={message} />
+                <ModernMessageRenderer key={message.id} message={message} />
               ))
             )}
 
@@ -228,6 +284,12 @@ export function ChatPanel() {
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
+
+        {/* Scroll to bottom button */}
+        <ScrollToBottom
+          isVisible={showScrollToBottom}
+          onClick={scrollToBottom}
+        />
       </div>
 
       {/* Input */}

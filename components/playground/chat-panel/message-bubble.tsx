@@ -2,11 +2,13 @@
 
 import React, { useState, useRef } from "react";
 import type { ChatMessage } from "@/store/chatStore";
-import { User, Bot, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { User, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import Image from "next/image"; // Using next/image for optimization
 import { cn } from "@/lib/utils";
 import { renderLucideIcon } from "@/lib/icon-utils";
 import { formatJsonData, cleanString, truncateText, isConceptData, extractConcepts } from '@/lib/format-utils';
+import { motion } from 'framer-motion';
+import { bubbleVariants } from '@/lib/motion-variants';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -21,6 +23,21 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isUserMessage = role === "user";
   const [isExpanded, setIsExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Copy to clipboard function
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // Play success sound
+      const { playCopySuccess } = await import('@/lib/playSFX');
+      playCopySuccess();
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Play error sound
+      const { playError } = await import('@/lib/playSFX');
+      playError();
+    }
+  };
 
   // Handle expanding content with smooth scroll
   const handleExpandToggle = () => {
@@ -82,29 +99,32 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   // Determine avatar based on message role
   const avatar = isUserMessage ? (
-    <div className="w-6 h-6 rounded-[10px] bg-blue-500 flex items-center justify-center flex-shrink-0">
+    <div className="w-6 h-6 rounded-[10px] bg-pm-indigo flex items-center justify-center flex-shrink-0">
       <User className="h-4 w-4 text-white" />
     </div>
   ) : (
-    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+    <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
       {icon && icon !== 'Bot' ?
-        renderLucideIcon(icon, { size: 16, className: "text-gray-700" }) :
+        renderLucideIcon(icon, { size: 16, className: "text-gray-600" }) :
         renderLucideIcon('PopMintLogo', { size: 16 })
       }
     </div>
   );
 
   return (
-    <div
+    <motion.div
+      variants={bubbleVariants[isUserMessage ? 'user' : 'ai']}
+      initial="hidden"
+      animate="show"
       className={cn(
-        "flex w-full overflow-x-visible",
+        "flex w-full overflow-x-visible mb-6", // 24px vertical gap as specified
         isUserMessage ? "justify-end" : "justify-start"
       )}
     >
       <div
         className={cn(
-          "flex gap-2 max-w-[85%]", // Max width to prevent overly wide bubbles
-          isUserMessage ? "flex-row-reverse" : "flex-row"
+          "flex gap-2",
+          isUserMessage ? "flex-row-reverse max-w-lg" : "flex-row max-w-lg" // max-w-lg as specified
         )}
       >
         {/* Avatar */}
@@ -113,10 +133,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {/* Message Content Area */}
         <div
           className={cn(
-            "rounded-[10px] px-3 py-2.5 text-[14px] break-words shadow-sm",
+            "rounded-[15px] px-4 py-3 text-[14px] break-words shadow-sm border border-[#EFEFEF]", // px-4 py-3 as specified
             isUserMessage
-              ? "bg-slate-100 text-slate-900 rounded-[10px]" // User message style
-              : "bg-white text-slate-800 rounded-bl-none" // Agent message style
+              ? "bg-pm-bubble-user text-slate-900" // Use new design token
+              : "bg-pm-bubble-ai text-slate-800" // Use new design token
           )}
         >
           {/* Main text content */}
@@ -124,7 +144,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             // Display concepts in separate bubbles
             <div className="space-y-4">
               {concepts.map((concept, index) => (
-                <div key={index} className="bg-white/90 rounded-[10px] p-3 shadow-sm">
+                <div key={index} className="bg-white/90 rounded-[15px] p-3 shadow-sm border border-[#EFEFEF]">
                   {/* Concept name/title */}
                   {concept.concept_name && (
                     <h3 className="font-medium text-sm mb-2 text-blue-600">{concept.concept_name}</h3>
@@ -184,8 +204,17 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
                   {/* CTA */}
                   {concept.cta && (
-                    <div className="text-sm text-blue-600 font-medium mt-2 p-1 bg-blue-50 rounded-md text-center">
-                      {concept.cta}
+                    <div className="flex items-center justify-between mt-2 p-2 bg-blue-50 rounded-md">
+                      <span className="text-sm text-blue-600 font-medium flex-1 text-center">
+                        {concept.cta}
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(concept.cta)}
+                        className="ml-2 p-1 hover:bg-blue-100 rounded transition-colors"
+                        title="Copy CTA"
+                      >
+                        <Copy className="w-3 h-3 text-blue-600" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -217,7 +246,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               {imageUrls.map((url: string, index: number) => (
                 <div
                   key={index}
-                  className="relative aspect-square w-full max-w-[200px] overflow-hidden rounded-[10px] shadow-sm hover:shadow-md transition-shadow duration-200"
+                  className="relative aspect-square w-full max-w-[200px] overflow-hidden rounded-[15px] shadow-sm hover:shadow-md transition-shadow duration-200 border border-[#EFEFEF]"
                   onClick={() => {
                     // Import from canvasStore to avoid circular dependencies
                     const { addImage } = require('@/store/canvasStore').useCanvasStore.getState();
@@ -262,6 +291,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </p>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
