@@ -47,8 +47,8 @@ export function AgentBubble({ message }: AgentBubbleProps) {
       >
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-3">
-            {renderLucideIcon(icon, { className: "w-5 h-5 text-pm-indigo" })} {/* 20px icon as specified */}
+          <div className="flex items-center gap-4">
+            {renderLucideIcon(icon, { className: "w-4 h-4 text-pm-indigo" })} {/* 20px icon as specified */}
             <h3 className="font-semibold text-gray-900 text-base">{title}</h3>
           </div>
 

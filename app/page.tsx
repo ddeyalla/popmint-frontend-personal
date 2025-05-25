@@ -468,7 +468,7 @@ export default function Home() {
             <img src="/popmint_logo.svg" alt="Popmint Logo" className="w-5 h-5" />
             <span className="text-xl font-medium">Popmint</span>
           </div>
-          <Button variant="outline" className="bg-black text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-black/90">
+          <Button variant="outline" className="transition-all duration-300 bg-gradient-to-br from-slate-900 to-slate-700 ring-1 text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-black/90 hover:ring-3 hover:text-white hover:ring-blue-200">
             Log in
           </Button>
         </header>
@@ -476,12 +476,12 @@ export default function Home() {
         {/* Main Content */}
         <main className="flex flex-col mt-40 items-center flex-1 w-full max-w-3xl mx-auto">
           <h1
-            className="text-4xl md:text-5xl font-bold text-center font-advercase-bold"
-            style={{ fontFamily: 'AdvercaseBold, sans-serif' }}
+            className="text-4xl md:text-5xl font-bold text-center font-advercase-bold "
+            style={{ fontFamily: 'AdvercaseBold, sans-serif', textShadow: '0 0 10px rgba(0,0,0,0.1)' }}
           >
             What are we designing today?
           </h1>
-          <p className="mt-4 text-center text-base">Concept to ads, with your personal marketing team</p>
+          <p className="mt-4 text-center text-base text-shadow-sm">Concept to ads, with your personal marketing team</p>
 
           {/* Input Box - Interactive version with image preview and drag-drop */}
           <div
@@ -521,7 +521,7 @@ export default function Home() {
               )}
 
               {/* Text input area */}
-              <div className="relative w-full">
+              <div className=" transition-all duration-300 relative w-full">
                 {/* Main content display layer */}
                 <div
                   ref={scrollableContainerRef}

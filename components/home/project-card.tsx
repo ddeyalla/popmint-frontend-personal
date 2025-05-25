@@ -156,7 +156,7 @@ export function ProjectCard({ project, isCreateCard = false, onClick, isLoading 
         {/* Delete button - positioned at bottom-left corner of thumbnail */}
         <button
           onClick={handleDeleteClick}
-          className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-md bg-white/90 backdrop-blur-sm hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all duration-200 shadow-sm"
+          className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-md bg-white/90 backdrop-blur-sm hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all duration-200 shadow-sm"
           title="Delete project"
         >
           <Trash2 className="w-4 h-4" />

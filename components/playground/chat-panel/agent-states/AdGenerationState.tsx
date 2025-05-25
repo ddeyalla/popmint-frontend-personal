@@ -57,9 +57,9 @@ function CompletedStage({
   icon: Icon,
   title,
   children,
-  bgColor = "bg-blue-50",
-  borderColor = "border-blue-200",
-  textColor = "text-blue-800",
+  bgColor = "bg-slate-50",
+  borderColor = "border-slate-200",
+  textColor = "text-slate-800",
   iconColor = "text-blue-500"
 }: {
   icon: any;

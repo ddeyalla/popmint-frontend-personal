@@ -93,7 +93,7 @@ export const handleProductAnalysisEvent = (
         'Analyzing Product Page',
         'FileSearch',
         jobId,
-        'bg-gradient-to-b from-cyan-50 to-white'
+        'bg-gradient-to-b py-2 from-cyan-50 to-white'
       );
 
       // Add sections

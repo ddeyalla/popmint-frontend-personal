@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Clock, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChatMessage } from '@/store/chatStore';
 import { renderLucideIcon } from '@/lib/icon-utils';
 import { motion } from 'framer-motion';
 import { bubbleVariants } from '@/lib/motion-variants';
 import { useLiveTimer, useCompletionTimer } from '@/hooks/useLiveTimer';
+import { cleanTextForDisplay } from '@/lib/format-utils';
 
 interface ModernAgentBubbleProps {
   message: ChatMessage;
@@ -21,8 +22,8 @@ export function ModernAgentBubble({ message }: ModernAgentBubbleProps) {
   const { type, title, icon, startTime, endTime, isCompleted } = agentData;
 
   // Use timer hooks
-  const liveTimer = useLiveTimer(isCompleted ? null : startTime);
-  const completionTimer = useCompletionTimer(startTime, endTime);
+  const liveTimer = useLiveTimer(isCompleted ? null : (startTime || null));
+  const completionTimer = useCompletionTimer(startTime || null, endTime || null);
 
   // Removed audio effects for better UX
 
@@ -159,23 +160,26 @@ export function ModernAgentBubble({ message }: ModernAgentBubbleProps) {
       <div className="max-w-lg">
         <div
           className={cn(
-            "rounded-[15px] px-4 py-3 shadow-sm border border-[#EFEFEF]",
-            style.bg
+            "rounded-[15px] px-4 py-3 shadow-sm border bg-white", // Add bg-white as fallback
+            style.bg,
+            style.border
           )}
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {renderLucideIcon(icon, {
-                className: cn("w-4 h-4", style.iconColor)
+                className: cn("w-4 h-4 text-blue-600", style.iconColor)
               })}
-              <span className={cn("font-semibold text-sm", style.titleColor)}>
+              <span className={cn("font-semibold text-sm text-slate-900", style.titleColor)}>
                 {title}
               </span>
             </div>
 
-            {/* Timer in top-right corner */}
-            {getTimerDisplay()}
+            {/* Timer in top-right corner with 8px spacing */}
+            <div className="ml-2">
+              {getTimerDisplay()}
+            </div>
           </div>
 
           {/* Plan content for smart planning bubble */}
@@ -208,12 +212,8 @@ export function ResearchOutputBubble({
 }: ResearchOutputBubbleProps) {
   const [showExpanded, setShowExpanded] = useState(isExpanded);
 
-  // Clean and format the content
-  const cleanContent = content
-    .replace(/```json/g, '')
-    .replace(/```/g, '')
-    .replace(/^\s*[\{\[]/, '')
-    .replace(/[\}\]]\s*$/, '');
+  // Clean and format the content using enhanced text cleaning
+  const cleanContent = cleanTextForDisplay(content);
 
   // Truncate to 300 words if not expanded
   const words = cleanContent.split(' ');
@@ -235,7 +235,7 @@ export function ResearchOutputBubble({
       className="flex w-full justify-start overflow-x-visible mb-4"
     >
       <div className="max-w-lg">
-        <div className="rounded-[15px] px-4 py-3 bg-chat-bg-research border border-[#EFEFEF] shadow-sm">
+        <div className="rounded-[15px] px-4 py-3 bg-chat-bg-research border border-chat-border-light shadow-sm">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
             <div className="w-4 h-4 rounded-full bg-sky-500 flex items-center justify-center">
@@ -279,7 +279,7 @@ export function AdConceptBubble({ concept, index }: AdConceptBubbleProps) {
       className="flex w-full justify-start overflow-x-visible mb-4"
     >
       <div className="max-w-lg">
-        <div className="rounded-[15px] px-4 py-3 bg-chat-bg-concept border border-[#EFEFEF] shadow-sm">
+        <div className="rounded-[15px] px-4 py-3 bg-chat-bg-concept border border-chat-border-light shadow-sm">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
             <div className="w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center text-white text-xs font-bold">

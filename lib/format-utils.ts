@@ -61,6 +61,77 @@ export function cleanString(str: string): string {
 }
 
 /**
+ * Enhanced text cleaning function for product research output display
+ * Removes JSON formatting, markdown, and improves readability
+ * @param text The text to clean
+ * @returns Cleaned and formatted text suitable for display
+ */
+export function cleanTextForDisplay(text: string): string {
+  if (!text) return '';
+
+  let cleaned = text;
+
+  // Step 1: Remove JSON structure elements
+  cleaned = cleaned
+    // Remove JSON code blocks
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    // Remove JSON object/array wrappers
+    .replace(/^\s*[\{\[]/, '')
+    .replace(/[\}\]]\s*$/, '')
+    // Remove quotes around JSON keys (but preserve quoted values)
+    .replace(/"([^"]+)":\s*/g, '$1: ')
+    // Clean up JSON commas and formatting
+    .replace(/,\s*\n/g, '\n')
+    .replace(/,\s*(?=\w)/g, ', ')
+    // Remove trailing commas
+    .replace(/,\s*$/gm, '');
+
+  // Step 2: Enhanced markdown removal
+  cleaned = cleaned
+    // Remove bold formatting (**text** and __text__)
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    // Remove italic formatting (*text* and _text_)
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    // Remove inline code (`text`)
+    .replace(/`(.*?)`/g, '$1')
+    // Remove links [text](url)
+    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+    // Remove headers (# ## ### etc.)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    // Remove strikethrough (~~text~~)
+    .replace(/~~(.*?)~~/g, '$1');
+
+  // Step 3: Improve text formatting and readability
+  cleaned = cleaned
+    // Convert JSON-style colons to readable format
+    .replace(/(\w+):\s*"([^"]+)"/g, '$1: $2')
+    .replace(/(\w+):\s*([^,\n]+)/g, '$1: $2')
+    // Add proper spacing after periods
+    .replace(/\.(?=[A-Z])/g, '. ')
+    // Clean up multiple spaces
+    .replace(/\s{2,}/g, ' ')
+    // Clean up line breaks
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '')
+    // Improve list formatting
+    .replace(/^[-*+]\s+/gm, '• ')
+    // Clean up any remaining JSON artifacts
+    .replace(/[{}[\]]/g, '')
+    .replace(/^\s*,\s*/gm, '')
+    .replace(/,\s*$/gm, '');
+
+  // Step 4: Final cleanup using existing cleanString function
+  cleaned = cleanString(cleaned);
+
+  return cleaned.trim();
+}
+
+/**
  * Truncates text to a specified length and adds an ellipsis
  * @param text The text to truncate
  * @param maxLength Maximum length before truncation
