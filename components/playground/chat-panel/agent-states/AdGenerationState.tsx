@@ -19,11 +19,11 @@ interface AdGenerationStateProps {
 }
 
 // Simple stage component for loading states
-function StageLoader({ 
-  icon: Icon, 
-  title, 
-  message, 
-  bgColor = "bg-blue-50", 
+function StageLoader({
+  icon: Icon,
+  title,
+  message,
+  bgColor = "bg-blue-50",
   borderColor = "border-[blue-200]",
   textColor = "text-blue-800",
   iconColor = "text-blue-500"
@@ -100,9 +100,7 @@ export function AdGenerationState({
   if (!currentStage) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500 py-3 px-3 self-start">
-        <div className="animate-pulse">
-          <Heart className="h-5 w-5 text-pink-500 fill-pink-500" />
-        </div>
+        <Heart className="h-5 w-5 text-pink-500 fill-pink-500" />
         <span className="font-normal text-slate-600">thinking</span>
         <span className="animate-bounce" style={{ animationDelay: '0.0s' }}>.</span>
         <span className="animate-bounce" style={{ animationDelay: '0.1s' }}>.</span>
@@ -150,7 +148,7 @@ export function AdGenerationState({
         {generatedImages && generatedImages.length > 0 && (
           <div className="mt-2 grid grid-cols-2 gap-2">
             {generatedImages.map((imageUrl, index) => (
-              <img 
+              <img
                 key={index}
                 src={imageUrl}
                 alt={`Generated ad ${index + 1}`}
@@ -169,7 +167,7 @@ export function AdGenerationState({
     "research_started", "research_done", "concepts_started", "concepts_done",
     "ideas_started", "ideas_done", "images_started", "image_generation_progress", "images_done", "done"
   ];
-  
+
   const currentStageIndex = stageOrder.indexOf(currentStage);
   const hasReached = (stage: Stage) => {
     const stageIndex = stageOrder.indexOf(stage);
@@ -238,8 +236,8 @@ export function AdGenerationState({
                       {!expandedResearch && researchSummary.length > 300 && "..."}
                     </div>
                     {researchSummary.length > 300 && (
-                      <button 
-                        className="text-indigo-600 text-xs mt-1 underline" 
+                      <button
+                        className="text-indigo-600 text-xs mt-1 underline"
                         onClick={() => setExpandedResearch(!expandedResearch)}
                       >
                         {expandedResearch ? "Show less" : "View full research"}
@@ -340,7 +338,7 @@ export function AdGenerationState({
               <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
             )}
           </div>
-          
+
           {currentStage === "images_started" && (
             <div className="text-sm text-pink-700 italic flex items-center gap-1">
               <span className="animate-bounce" style={{ animationDelay: '0.0s' }}>.</span>
@@ -348,7 +346,7 @@ export function AdGenerationState({
               <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>.</span>
             </div>
           )}
-          
+
           {currentStage === "image_generation_progress" && currentImage && totalImages && (
             <div className="flex flex-col gap-2">
               <div className="text-sm text-pink-700">
@@ -356,8 +354,8 @@ export function AdGenerationState({
               </div>
               {imageUrl && (
                 <div className="mt-2">
-                  <img 
-                    src={imageUrl} 
+                  <img
+                    src={imageUrl}
                     alt={`Generated image ${currentImage}`}
                     className="rounded-[10px] max-h-[150px] w-auto object-contain border border-gray-200"
                   />
@@ -365,17 +363,17 @@ export function AdGenerationState({
               )}
             </div>
           )}
-          
+
           {hasReached("images_done") && currentStage !== "images_started" && currentStage !== "image_generation_progress" && (
             <div className="text-sm text-green-600 font-normal">
               ✓ Ads generated.
             </div>
           )}
-          
+
           {generatedImages && generatedImages.length > 0 && (
             <div className="mt-2 grid grid-cols-2 gap-2">
               {generatedImages.map((imageUrl, index) => (
-                <img 
+                <img
                   key={index}
                   src={imageUrl}
                   alt={`Generated ad ${index + 1}`}
@@ -388,4 +386,4 @@ export function AdGenerationState({
       )}
     </div>
   );
-} 
+}

@@ -211,7 +211,7 @@ function ThinkingBubble({ isVisible }: { isVisible: boolean }) {
   return (
     <div className="flex items-center gap-1 p-2 bg-gray-50 rounded-[10px] max-w-fit">
       <div className="w-4 h-4 flex items-center justify-center">
-        <Heart className="w-4 h-4 text-pink-500 animate-pulse" />
+        <Heart className="w-4 h-4 text-pink-500" />
       </div>
       <span className="text-gray-700 text-sm">thinking</span>
       <AnimatedDots />
@@ -483,8 +483,7 @@ export function ModernAdGenerationFlow({
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-md">
-      {/* Thinking Bubble - only show at the very start */}
-      <ThinkingBubble isVisible={!frontendStage || frontendStage === 'plan'} />
+      {/* Removed thinking bubble for cleaner UX */}
 
       {/* Smart Planning - show once we have a plan */}
       <SmartPlanningBubble isVisible={hasReached('plan')} />
@@ -652,7 +651,7 @@ export function ModernAdGenerationFlow({
             {(frontendStage === 'images_started' || frontendStage === 'image_generation_progress') && (
               <div className="bg-white/40 backdrop-blur-sm rounded-[10px] p-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                   <span className="text-xs text-gray-700">
                     {currentImage && totalImages
                       ? `Generating image ${currentImage} of ${totalImages}`

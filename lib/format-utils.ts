@@ -48,12 +48,16 @@ export function cleanString(str: string): string {
     .replace(/\\"/g, '"')
     .replace(/\\'/g, "'")
     .replace(/\\\\/g, '\\')
-    // Remove control characters
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    // Handle Unicode escape sequences
+    .replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
+    // Remove control characters but preserve common ones
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
     // Normalize whitespace
     .replace(/\s+\n/g, '\n')
     .replace(/\n\s+/g, '\n')
-    .replace(/\n{3,}/g, '\n\n');
+    .replace(/\n{3,}/g, '\n\n')
+    // Clean up any remaining malformed characters
+    .replace(/[^\x20-\x7E\n\r\t\u00A0-\uFFFF]/g, '');
 }
 
 /**

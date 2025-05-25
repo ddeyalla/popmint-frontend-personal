@@ -12,8 +12,8 @@ interface SFXConfig {
 
 class SFXManager {
   private config: SFXConfig = {
-    enabled: true,
-    volume: 0.3
+    enabled: false, // Disabled for better UX
+    volume: 0.0
   };
 
   private audioContext: AudioContext | null = null;
@@ -54,26 +54,8 @@ class SFXManager {
   }
 
   play(type: SFXType) {
-    switch (type) {
-      case 'message_send':
-        this.createTone(800, 0.1, 'sine');
-        break;
-      case 'message_receive':
-        this.createTone(600, 0.15, 'sine');
-        break;
-      case 'agent_complete':
-        // Success chord
-        this.createTone(523, 0.2, 'sine'); // C
-        setTimeout(() => this.createTone(659, 0.2, 'sine'), 100); // E
-        setTimeout(() => this.createTone(784, 0.3, 'sine'), 200); // G
-        break;
-      case 'error':
-        this.createTone(300, 0.3, 'sawtooth');
-        break;
-      case 'copy_success':
-        this.createTone(1000, 0.1, 'sine');
-        break;
-    }
+    // Audio disabled for better UX - no sounds will play
+    return;
   }
 
   setEnabled(enabled: boolean) {

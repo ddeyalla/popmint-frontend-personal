@@ -19,14 +19,10 @@ interface MessageRendererProps {
 const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
-    // Play success sound
-    const { playCopySuccess } = await import('@/lib/playSFX');
-    playCopySuccess();
+    // Removed audio effects for better UX
   } catch (err) {
     console.error('Failed to copy text: ', err);
-    // Play error sound
-    const { playError } = await import('@/lib/playSFX');
-    playError();
+    // Removed audio effects for better UX
   }
 };
 

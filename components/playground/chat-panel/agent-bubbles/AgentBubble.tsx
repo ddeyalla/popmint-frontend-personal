@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Clock, ChevronDown, ChevronUp, Hourglass, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Clock, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChatMessage, AgentBubbleSection, SectionStatus } from '@/store/chatStore';
 import { renderLucideIcon } from '@/lib/icon-utils';
-import { formatJsonData, cleanString, truncateText, isConceptData, extractConcepts } from '@/lib/format-utils';
+import { formatJsonData, cleanString, truncateText, extractConcepts } from '@/lib/format-utils';
 import { motion } from 'framer-motion';
-import { bubbleVariants, staggerContainer, inProgressPulse, inProgressGlow } from '@/lib/motion-variants';
+import { bubbleVariants, staggerContainer } from '@/lib/motion-variants';
 import { useLiveTimer, useCompletionTimer } from '@/hooks/useLiveTimer';
 import { StatusPill, StatusType } from '@/components/ui/status-pill';
 
@@ -21,23 +21,15 @@ export function AgentBubble({ message }: AgentBubbleProps) {
 
   if (!agentData) return null;
 
-  const { type, title, icon, gradient, startTime, endTime, sections, isCompleted } = agentData;
+  const { title, icon, startTime, endTime, sections, isCompleted } = agentData;
 
   // Use live timer hooks
   const liveTimer = useLiveTimer(isCompleted ? null : startTime);
   const completionTimer = useCompletionTimer(startTime, endTime);
 
-  // Play completion sound when agent task completes
-  useEffect(() => {
-    if (isCompleted && completionTimer) {
-      import('@/lib/playSFX').then(({ playAgentComplete }) => {
-        playAgentComplete();
-      });
-    }
-  }, [isCompleted, completionTimer]);
+  // Removed audio effects for better UX
 
-  // Determine if agent is in progress (has active sections or not completed)
-  const isInProgress = !isCompleted && sections.some(section => section.status === 'active');
+
 
   return (
     <motion.div
@@ -51,28 +43,25 @@ export function AgentBubble({ message }: AgentBubbleProps) {
           "max-w-3xl rounded-[15px] px-5 py-4 shadow-sm border border-[#EFEFEF] border-l-4 border-l-pm-indigo", // max-w-3xl, px-5 py-4, border-l-4 as specified
           "bg-pm-bubble-agent" // Use new design token
         )}
-        animate={isInProgress ? inProgressPulse : {}}
-        style={isInProgress ? {
-          boxShadow: "0 0 0 0 rgba(99, 102, 241, 0.1)"
-        } : {}}
+
       >
         {/* Header */}
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-3">
             {renderLucideIcon(icon, { className: "w-5 h-5 text-pm-indigo" })} {/* 20px icon as specified */}
-            <h3 className="font-medium text-gray-800 text-base">{title}</h3>
+            <h3 className="font-semibold text-gray-900 text-base">{title}</h3>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Timer display */}
+          <div className="flex items-center gap-4">
+            {/* Timer display - removed colors, added spacing */}
             {completionTimer ? (
-              <div className="flex items-center text-xs text-pm-emerald font-medium">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
+              <div className="flex items-center text-xs text-gray-500 font-medium">
+                <CheckCircle2 className="w-3 h-3 mr-1.5" />
                 <span>{completionTimer}</span>
               </div>
             ) : liveTimer ? (
-              <div className="flex items-center text-xs text-pm-indigo">
-                <Clock className="w-3 h-3 mr-1" />
+              <div className="flex items-center text-xs text-gray-500">
+                <Clock className="w-3 h-3 mr-1.5" />
                 <span>{liveTimer}</span>
               </div>
             ) : null}
@@ -278,36 +267,4 @@ function AgentBubbleSectionComponent({ section }: { section: AgentBubbleSection 
   );
 }
 
-// Helper function to render status indicators
-function renderStatusIndicator(status: SectionStatus) {
-  switch (status) {
-    case 'pending':
-      return (
-        <div className="flex items-center text-gray-400">
-          <Hourglass className="w-3 h-3 mr-1" />
-          <span>Pending...</span>
-        </div>
-      );
-    case 'active':
-      return (
-        <div className="flex items-center text-blue-500">
-          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-          <span>In progress...</span>
-        </div>
-      );
-    case 'completed':
-      return (
-        <div className="flex items-center text-green-500">
-          <CheckCircle2 className="w-3 h-3 mr-1" />
-          <span>Completed</span>
-        </div>
-      );
-    case 'error':
-      return (
-        <div className="flex items-center text-red-500">
-          <AlertTriangle className="w-3 h-3 mr-1" />
-          <span>Error</span>
-        </div>
-      );
-  }
-}
+

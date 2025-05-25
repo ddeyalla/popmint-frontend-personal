@@ -18,13 +18,11 @@ export const findAgentBubble = (type: AgentBubbleType): { id: string, agentData:
  */
 export const handlePlanEvent = (jobId: string, _data: any) => {
   const {
-    addTemporaryMessage,
     addAgentBubble,
     addAgentBubbleSection
   } = useChatStore.getState();
 
-  // First, add a temporary message that will disappear
-  addTemporaryMessage("Got it! Let me take a look at that for you...", "Loader2");
+  // Removed temporary thinking message for cleaner UX
 
   // Create the Plan agent bubble - using "Smart planning" instead of "Our Ad Creation Plan"
   const bubbleId = addAgentBubble(

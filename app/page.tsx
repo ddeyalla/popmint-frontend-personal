@@ -448,9 +448,20 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col relative overflow-hidden bg-pastel-swirl bg-cover bg-center">
-      {/* Fixed gradient background */}
-      <div className="container mx-auto px-4 pt-4 pb-2 flex-1 flex flex-col z-100 min-h-[calc(80vh-80px)]">
+    <div className="min-h-screen w-full flex flex-col relative overflow-hidden">
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline // Important for iOS Safari
+        className="fixed inset-0 w-full h-full object-fill -z-10"
+      >
+        <source src="/bg/bg-sky.webm" type="video/webm" />
+        {/* You can add other video formats here for broader compatibility if needed */}
+        Your browser does not support the video tag.
+      </video>
+      {/* Fixed gradient background - This container will now be over the video */}
+      <div className="container mx-auto px-4 pt-4 pb-2 flex-1 flex flex-col z-0 min-h-[calc(80vh-80px)]">
         {/* Header - Sticky */}
         <header className="flex justify-between items-center sticky z-10">
           <div className="flex items-center gap-1">
@@ -481,7 +492,7 @@ export default function Home() {
             onDrop={handleDrop}
           >
             <div
-              className={` w-full max-w-xl px-3 py-2 bg-white rounded-[15px] outline-offset-[-1px]
+              className={`w-full max-w-xl px-3 py-2 bg-slate-50/75 border border-slate-200/100 backdrop-blur-md rounded-[15px] outline-offset-[-1px] shadow-[0_0_10px_rgba(0,0,0,0.1)]
               ${isDragging ? "outline-blue-400 bg-blue-50" : "outline-gray-200"}
               inline-flex flex-col justify-end items-end gap-2 overflow-hidden transition-colors`}
             >
@@ -592,7 +603,7 @@ export default function Home() {
                   className={`self-stretch min-w-10 p-2 rounded-[100px] flex justify-center items-center gap-1 overflow-hidden transition-colors ${
                     inputValue.trim() || uploadedImages.length > 0
                       ? "bg-blue-500 hover:bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-slate-50 text-gray-400 cursor-not-allowed"
                   }`}
                   disabled={!inputValue.trim() && uploadedImages.length === 0 || isSubmitting}
                   aria-label="Send message"
@@ -610,10 +621,8 @@ export default function Home() {
       </div>
 
       {/* Project Section - Outside container to stretch full width */}
-      <ProjectSection />
-      <div className="mb-20 px-4">
+      <div className="mb-4 px-4">      <ProjectSection/></div>
 
-      </div>
     </div>
   )
 }

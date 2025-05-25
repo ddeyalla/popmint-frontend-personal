@@ -24,14 +24,7 @@ export function ModernAgentBubble({ message }: ModernAgentBubbleProps) {
   const liveTimer = useLiveTimer(isCompleted ? null : startTime);
   const completionTimer = useCompletionTimer(startTime, endTime);
 
-  // Play completion sound when agent task completes
-  useEffect(() => {
-    if (isCompleted && completionTimer) {
-      import('@/lib/playSFX').then(({ playAgentComplete }) => {
-        playAgentComplete();
-      });
-    }
-  }, [isCompleted, completionTimer]);
+  // Removed audio effects for better UX
 
   // Get bubble styling based on type
   const getBubbleStyle = (bubbleType: string) => {
@@ -101,18 +94,23 @@ export function ModernAgentBubble({ message }: ModernAgentBubbleProps) {
     }
   };
 
-  // Get timer display
+  // Get timer display - exclude timer for smart planning bubble
   const getTimerDisplay = () => {
+    // Don't show timer for smart planning bubble
+    if (type === 'plan') {
+      return null;
+    }
+
     if (isCompleted && completionTimer) {
       return (
-        <div className="flex items-center gap-1 text-xs text-chat-text-success">
+        <div className="flex items-center gap-1 text-xs text-gray-500">
           <CheckCircle2 className="w-3 h-3" />
           <span>{completionTimer}</span>
         </div>
       );
     } else if (liveTimer) {
       return (
-        <div className="flex items-center gap-1 text-xs text-chat-text-muted">
+        <div className="flex items-center gap-1 text-xs text-gray-500">
           <Clock className="w-3 h-3" />
           <span>{liveTimer}</span>
         </div>
@@ -125,12 +123,25 @@ export function ModernAgentBubble({ message }: ModernAgentBubbleProps) {
   const getPlanContent = () => {
     if (type === 'plan') {
       return (
-        <div className="mt-2 text-xs text-chat-text-secondary leading-relaxed">
-          <div className="space-y-1">
-            <div>1. Analyze product page</div>
-            <div>2. Research market & audience</div>
-            <div>3. Generate ad concepts</div>
-            <div>4. Create visual assets</div>
+        <div className="mt-3 text-xs text-gray-600 leading-relaxed">
+          <div className="text-xs text-gray-500 mb-2 font-medium">Here's my plan to create your ads:</div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+              <span>Analyze product page</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+              <span>Research market & audience</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+              <span>Generate ad concepts</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+              <span>Create visual assets</span>
+            </div>
           </div>
         </div>
       );
@@ -153,12 +164,12 @@ export function ModernAgentBubble({ message }: ModernAgentBubbleProps) {
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-3">
               {renderLucideIcon(icon, {
                 className: cn("w-4 h-4", style.iconColor)
               })}
-              <span className={cn("font-medium text-sm", style.titleColor)}>
+              <span className={cn("font-semibold text-sm", style.titleColor)}>
                 {title}
               </span>
             </div>
@@ -172,9 +183,9 @@ export function ModernAgentBubble({ message }: ModernAgentBubbleProps) {
 
           {/* Status indicator for active bubbles */}
           {!isCompleted && (
-            <div className="flex items-center gap-2 mt-2 text-xs text-chat-text-muted">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>{getContextualStatusMessage(type)}</span>
+            <div className="flex items-center gap-2 mt-3 text-xs text-gray-500">
+              <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+              <span className="font-medium">{getContextualStatusMessage(type)}</span>
             </div>
           )}
         </div>
