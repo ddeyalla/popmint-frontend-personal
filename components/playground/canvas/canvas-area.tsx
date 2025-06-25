@@ -8,10 +8,12 @@ import { KonvaImage } from "./konva-image"
 import { KonvaText } from "./konva-text"
 import { useCanvasStore } from "@/store/canvasStore"
 import { useChatStore } from "@/store/chatStore"
+import { useProjectStore } from "@/store/projectStore"
 import { ZoomIn, ZoomOut, Maximize, Layout } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CanvasToolbar } from "./canvas-toolbar" // Import CanvasToolbar
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
 import { cn } from "@/lib/utils"
 
 // Constants
@@ -26,6 +28,8 @@ const SAMPLE_IMAGE_INITIAL_X = 20;
 const SAMPLE_IMAGE_INITIAL_Y = 20;
 const SAMPLE_IMAGE_SPACING_X = 420;
 const SAMPLE_IMAGE_ADD_DELAY_MS = 100;
+const GENERATED_IMAGE_SIZE = 512; // Size for generated images (512x512)
+const GENERATED_IMAGE_GAP = 40; // Gap between generated images
 const MIN_STAGE_WIDTH_4K = 1920;
 const MIN_STAGE_HEIGHT_4K = 1080;
 const DEFAULT_STAGE_WIDTH = 800;
@@ -51,8 +55,10 @@ export function CanvasArea() {
     toolMode,
     duplicateObject,
     isSidebarCollapsed,
+
   } = useCanvasStore()
   const messages = useChatStore((state) => state.messages)
+  const { currentProjectId } = useProjectStore()
   const stageRef = useRef<Konva.Stage>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const groupRef = useRef<Konva.Group>(null)
@@ -76,57 +82,52 @@ export function CanvasArea() {
   const lastPinchDistance = useRef<number | null>(null);
   const lastPinchMidpoint = useRef<{ x: number; y: number } | null>(null);
 
+  // Legacy thumbnail generation removed - now using 2x2 image grid
+
   const debouncedResize = useCallback((entries: ResizeObserverEntry[] = []) => {
     if (!containerRef.current || !stageRef.current) return;
-    
+
+    // Get the full container dimensions without any constraints
     const containerWidth = containerRef.current.offsetWidth || DEFAULT_STAGE_WIDTH;
     const containerHeight = containerRef.current.offsetHeight || DEFAULT_STAGE_HEIGHT;
-    
+
+    // Use the full container dimensions to avoid trimming
     let finalWidth = containerWidth;
     let finalHeight = containerHeight;
 
-    if (window.innerWidth <= 768) { // Mobile screens
-      finalHeight = containerHeight;
-      finalWidth = Math.min(containerWidth, containerHeight * DEFAULT_ASPECT_RATIO);
-    } else { // Larger screens
-      if (containerWidth / containerHeight > DEFAULT_ASPECT_RATIO) {
-        finalHeight = containerHeight;
-        finalWidth = containerHeight * DEFAULT_ASPECT_RATIO;
-      } else {
-        finalWidth = containerWidth;
-        finalHeight = containerWidth / DEFAULT_ASPECT_RATIO;
-      }
-    }
-    
     // For 4K screens, ensure minimum dimensions
     const minWidth = window.innerWidth >= 3840 ? MIN_STAGE_WIDTH_4K : DEFAULT_STAGE_WIDTH;
     const minHeight = window.innerWidth >= 3840 ? MIN_STAGE_HEIGHT_4K : DEFAULT_STAGE_HEIGHT;
 
+    // Ensure we don't go below minimum dimensions
     finalWidth = Math.max(finalWidth, minWidth);
     finalHeight = Math.max(finalHeight, minHeight);
-    
+
+    console.log('Canvas resize: container dimensions', containerWidth, 'x', containerHeight);
+    console.log('Canvas resize: final dimensions', finalWidth, 'x', finalHeight);
+
     setStageSize({ width: finalWidth, height: finalHeight });
     stageRef.current.width(finalWidth);
     stageRef.current.height(finalHeight);
     stageRef.current.batchDraw();
   }, [isSidebarCollapsed]); // isSidebarCollapsed can affect containerRef.current.offsetWidth/Height indirectly
-  
+
   useEffect(() => {
     if (!containerRef.current) return;
-    
+
     const observer = new ResizeObserver((entries) => {
       requestAnimationFrame(() => debouncedResize(entries));
     });
-    
-    debouncedResize([]); 
+
+    debouncedResize([]);
     observer.observe(containerRef.current);
-    
+
     const handleCanvasResizeEvent = () => {
       requestAnimationFrame(() => debouncedResize([]));
     };
-    
+
     window.addEventListener('canvas-resize', handleCanvasResizeEvent);
-    
+
     return () => {
       observer.disconnect();
       window.removeEventListener('canvas-resize', handleCanvasResizeEvent);
@@ -230,8 +231,8 @@ export function CanvasArea() {
           setTimeout(() => {
             // Ensure addImage is fresh from the store if called in a loop/timeout
             useCanvasStore.getState().addImage(
-              url, 
-              SAMPLE_IMAGE_INITIAL_X + index * SAMPLE_IMAGE_SPACING_X, 
+              url,
+              SAMPLE_IMAGE_INITIAL_X + index * SAMPLE_IMAGE_SPACING_X,
               SAMPLE_IMAGE_INITIAL_Y
             );
           }, index * SAMPLE_IMAGE_ADD_DELAY_MS);
@@ -291,7 +292,7 @@ export function CanvasArea() {
     if (stage && toolMode === 'hand') {
       stage.container().style.cursor = 'grab';
     }
-    
+
     setIsPanning(false);
     panStart.current = null;
     lastPointer.current = null;
@@ -339,9 +340,9 @@ export function CanvasArea() {
 
       if (lastPinchDistance.current !== null && lastPinchMidpoint.current !== null) { // Ensure lastPinchMidpoint.current is also not null
         const deltaDistance = distance - lastPinchDistance.current;
-        
+
         // Only zoom if movement is significant to avoid jitter
-        if (Math.abs(deltaDistance) > 2) { 
+        if (Math.abs(deltaDistance) > 2) {
           let newZoom = zoomLevel * (1 + deltaDistance / 300); // Sensitivity factor
           newZoom = Math.max(MIN_ZOOM_LEVEL, Math.min(MAX_ZOOM_LEVEL, newZoom));
 
@@ -362,7 +363,7 @@ export function CanvasArea() {
       }
       lastPinchDistance.current = distance;
       lastPinchMidpoint.current = midpoint; // Store current midpoint
-      return; 
+      return;
     }
 
     // Pan with a single finger if in 'hand' mode, or two fingers (already handled by pinch-zoom return)
@@ -415,13 +416,13 @@ export function CanvasArea() {
 
       const newId = duplicateObject(id); // This creates and adds the duplicate to the store
       if (!newId) return;
-      
+
       // Select only the newly duplicated object
-      selectObject([newId]); 
+      selectObject([newId]);
 
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
-      
+
       // The duplicated object is already at its new position from the store's duplicateObject logic
       // We need its initial position to calculate drag delta for the *visual* dragging feedback.
       const duplicatedObjectFromStore = useCanvasStore.getState().objects.find(obj => obj.id === newId);
@@ -454,7 +455,7 @@ export function CanvasArea() {
     // a different onDragEnd for the <Group> component wrapping selected items.
     // If this is still intended to be used, ensure it's wired up correctly.
     // The onDragEnd prop on the <Group> component below is likely the one being used.
-    const groupNode = e.target as Konva.Group 
+    const groupNode = e.target as Konva.Group
     if (!groupNode) return
 
     const dx = groupNode.x()
@@ -469,15 +470,15 @@ export function CanvasArea() {
         })
       }
     })
-    groupNode.position({ x: 0, y: 0 }) 
-    groupNode.getStage()?.draggable(true) 
+    groupNode.position({ x: 0, y: 0 })
+    groupNode.getStage()?.draggable(true)
   }, [selectedObjectIds, objects]);
-  
+
   const handleGroupTransformEnd = useCallback((e: KonvaEventObject<Event>) => {
     const transformer = transformerRef.current;
     if (!transformer) return;
 
-    transformer.nodes().forEach((node: Konva.Node) => { 
+    transformer.nodes().forEach((node: Konva.Node) => {
         const obj = objects.find(o => o.id === node.id());
         if (obj) {
             useCanvasStore.getState().updateObject(obj.id, {
@@ -497,7 +498,7 @@ export function CanvasArea() {
 
   const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
     if (!e.evt.ctrlKey) return; // Only zoom if Ctrl key is pressed
-    
+
     e.evt.preventDefault();
     const stage = e.target.getStage();
     if (!stage) return;
@@ -506,20 +507,20 @@ export function CanvasArea() {
     const scaleBy = Math.pow(WHEEL_ZOOM_SENSITIVITY_FACTOR, -e.evt.deltaY);
     let newScale = oldScale * scaleBy;
     newScale = Math.max(MIN_ZOOM_LEVEL, Math.min(MAX_ZOOM_LEVEL, newScale));
-    
+
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
-    
+
     const mousePointTo = {
       x: (pointer.x - stageOffset.x) / oldScale,
       y: (pointer.y - stageOffset.y) / oldScale,
     };
-    
+
     const newPos = {
       x: pointer.x - mousePointTo.x * newScale,
       y: pointer.y - mousePointTo.y * newScale,
     };
-    
+
     setZoomLevel(newScale);
     setStageOffset(newPos);
   }, [zoomLevel, stageOffset, setZoomLevel, setStageOffset]);
@@ -531,24 +532,29 @@ export function CanvasArea() {
     const minY = Math.min(...objects.map((obj) => obj.y));
     const maxX = Math.max(...objects.map((obj) => (obj.x + (obj.width || 0))));
     const maxY = Math.max(...objects.map((obj) => (obj.y + (obj.height || 0))));
-    
+
     const contentWidth = Math.max(1, maxX - minX); // Ensure contentWidth is at least 1
     const contentHeight = Math.max(1, maxY - minY); // Ensure contentHeight is at least 1
-    
-    const availableWidth = (containerRef.current.offsetWidth || DEFAULT_STAGE_WIDTH) - FIT_TO_SCREEN_PADDING * 2;
-    const availableHeight = (containerRef.current.offsetHeight || DEFAULT_STAGE_HEIGHT) - FIT_TO_SCREEN_PADDING * 2;
-    
+
+    // Use full container dimensions with minimal padding
+    const availableWidth = containerRef.current.offsetWidth || DEFAULT_STAGE_WIDTH;
+    const availableHeight = containerRef.current.offsetHeight || DEFAULT_STAGE_HEIGHT;
+
+    // Calculate scale to fit content within available space
     const scale = Math.min(
-      availableWidth / contentWidth,
-      availableHeight / contentHeight,
+      (availableWidth - FIT_TO_SCREEN_PADDING) / contentWidth,
+      (availableHeight - FIT_TO_SCREEN_PADDING) / contentHeight,
       MAX_ZOOM_LEVEL // Don't zoom in beyond MAX_ZOOM_LEVEL when fitting
     );
-    
+
     const finalScale = Math.max(MIN_ZOOM_LEVEL, scale); // Ensure scale is not below MIN_ZOOM_LEVEL
 
-    const offsetX = FIT_TO_SCREEN_PADDING + (availableWidth - contentWidth * finalScale) / 2 - minX * finalScale;
-    const offsetY = FIT_TO_SCREEN_PADDING + (availableHeight - contentHeight * finalScale) / 2 - minY * finalScale;
-    
+    // Center content in the available space
+    const offsetX = (availableWidth - contentWidth * finalScale) / 2 - minX * finalScale;
+    const offsetY = (availableHeight - contentHeight * finalScale) / 2 - minY * finalScale;
+
+    console.log('Fit to screen: scale', finalScale, 'offset', offsetX, offsetY);
+
     setZoomLevel(Number(finalScale.toFixed(2)));
     setStageOffset({ x: offsetX, y: offsetY });
   }, [objects, setZoomLevel, setStageOffset]); // containerRef and stageRef are stable refs
@@ -574,7 +580,7 @@ export function CanvasArea() {
         // The group itself is transformed, and its children (selected objects) move with it.
         nodesToTransform = [groupRef.current];
       }
-      
+
       currentTransformer.nodes(nodesToTransform);
       currentTransformer.getLayer()?.batchDraw();
     }, 0);
@@ -592,22 +598,26 @@ export function CanvasArea() {
   return (
     <div
       className={cn(
-        "relative w-full h-full bg-white overflow-hidden", 
-        isSidebarCollapsed ? "fixed inset-0 z-30" : "rounded-[10px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]",
-        "md:p-4", 
-        "2xl:p-6", 
-        "4xl:p-8",
+        "relative w-full h-full bg-white overflow-hidden",
+        isSidebarCollapsed ? "fixed inset-0 z-30" : "rounded-[0px] shadow-[0px_1px_3px_#00000026,0px_0px_0.5px_#0000004c]",
+        // Remove padding to allow canvas to expand edge-to-edge
       )}
     >
-      <div className="pointer-events-none absolute rounded-[10px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]"></div>
-      
+      <div className="pointer-events-none absolute rounded-[0px] bg-[#FAFAFA] inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]"></div>
+
       <div
         key={isSidebarCollapsed ? 'collapsed' : 'expanded'} // Key to help React re-evaluate if container changes drastically
         className={cn(
           "w-full h-full overflow-hidden",
-          "flex items-center justify-center" 
+          "flex items-center justify-center"
         )}
-        style={{ overflow: "hidden" }} // Ensure overflow hidden is applied
+        style={{
+          overflow: "hidden", // Ensure overflow hidden is applied
+          padding: 0, // No padding
+          margin: 0, // No margin
+          width: "100%", // Full width
+          height: "100%" // Full height
+        }}
         ref={containerRef}
       >
         {containerRef.current && ( // Ensure containerRef is available before rendering Stage
@@ -630,8 +640,7 @@ export function CanvasArea() {
             draggable={false} // Stage draggable is false; panning is custom. Group is draggable for multi-select.
             className={cn(
               "transition-transform duration-300 ease-in-out", // Smooth zoom/pan
-              "md:rounded-xl", 
-              "md:shadow-lg" 
+              "w-full h-full" // Ensure stage fills the container
             )}
           >
             <Layer>
@@ -690,10 +699,12 @@ export function CanvasArea() {
                       groupNode.position({ x: 0, y: 0 }); // Reset group position for next drag
                       setDragStartPositions({});
                       // e.target.getStage()?.draggable(true); // Re-enable if disabled
+
+                      // Legacy thumbnail generation removed
                     }}
                     // Position the group based on the average of its children or a reference point if needed.
                     // For simplicity, starting at (0,0) and letting transformer handle relative positions.
-                    x={0} 
+                    x={0}
                     y={0}
                   >
                     {objects.filter(obj => selectedObjectIds.includes(obj.id)).map(obj =>

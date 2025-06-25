@@ -1,32 +1,101 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
+
 import { MessageRenderer } from "./MessageRenderer"
-import { ChatInput } from "./chat-input"
+import { ModernMessageRenderer } from "./ModernMessageRenderer"
+import { ModernToggleBanner } from "./ModernToggleBanner"
+import ChatInput from "./chat-input/index"
 import { useChatStore } from "@/store/chatStore"
-import { CheckCircle, CircleCheck, ImageIcon, Store } from "lucide-react"
+import { CircleCheck, Store } from "lucide-react"
 import { useSessionStore } from "@/store/sessionStore"
 import { SidebarToggle } from "@/components/playground/sidebar-toggle"
 import { useCanvasStore } from "@/store/canvasStore"
 import Link from "next/link"
 import { ProjectTitleDropdown } from "@/components/playground/project-title-dropdown"
 import { generateImageFromPrompt } from '@/lib/generate-image'
-import { CommandHelp } from "@/components/ui/command-help"
+import { messageQueue } from '@/lib/message-queue'
+
+import { useChatMessages } from "@/lib/chat-swr"
+import { useProjectStore } from "@/store/projectStore"
+import { ChatLoadingSkeleton } from "@/components/ui/loading-skeleton"
+import { ChatErrorBanner } from "@/components/ui/error-banner"
+import { ScrollToBottom } from "@/components/ui/scroll-to-bottom"
 
 export function ChatPanel() {
   const messages = useChatStore((state) => state.messages)
+  const setMessages = useChatStore((state) => state.setMessages)
   const addMessage = useChatStore((state) => state.addMessage)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { projectName, setProjectName } = useSessionStore()
-  const { isSidebarCollapsed } = useCanvasStore()
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const { setProjectName } = useSessionStore()
+  const { currentProjectId } = useProjectStore()
+  const hasHydratedRef = useRef(false)
+
+  // Scroll state management
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+
+  // Use SWR for chat data fetching with loading and error states
+  const {
+    messages: swrMessages,
+    error: loadError,
+    isLoading,
+    isValidating,
+    revalidate
+  } = useChatMessages(currentProjectId)
+
+  // Scroll handling functions
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
+
+    setIsNearBottom(nearBottom);
+    setShowScrollToBottom(!nearBottom && messages.length > 0);
+  }, [messages.length]);
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
 
   // Debug logging for messages
   console.log(`🔥 ChatPanel - Messages count: ${messages.length}`);
+  console.log(`🔥 ChatPanel - SWR Messages count: ${swrMessages.length}`);
+  console.log(`🔥 ChatPanel - Loading: ${isLoading}, Error: ${!!loadError}`);
+  console.log(`🔥 ChatPanel - Current Project ID: ${currentProjectId}`);
   messages.forEach((msg, index) => {
-    console.log(`🔥 ChatPanel - Message ${index}: ${msg.id}, type: ${msg.type}`);
+    console.log(`🔥 ChatPanel - Message ${index}: ${msg.id}, type: ${msg.type}, role: ${msg.role}`);
   });
+
+  // Initialize message queue
+  useEffect(() => {
+    messageQueue.initialize((message) => {
+      addMessage(message);
+    });
+
+    // Clear queue when component unmounts or project changes
+    return () => {
+      messageQueue.clear();
+    };
+  }, [currentProjectId, addMessage]);
+
+  // FIXED: Hydrate chat store with SWR data when available
+  // This should happen when SWR finishes loading, regardless of message count
+  useEffect(() => {
+    if (!isLoading && currentProjectId && swrMessages !== undefined && !hasHydratedRef.current) {
+      console.log('[ChatPanel] 💾 Hydrating chat store with SWR data:', swrMessages.length, 'messages');
+      setMessages(swrMessages);
+      hasHydratedRef.current = true;
+    }
+  }, [swrMessages, isLoading, currentProjectId, setMessages]);
+
+  // Reset hydration flag when project changes
+  useEffect(() => {
+    hasHydratedRef.current = false;
+  }, [currentProjectId]);
 
   // Set project name from localStorage if it exists
   useEffect(() => {
@@ -41,8 +110,8 @@ export function ChatPanel() {
   // Check for initial message from homepage
   useEffect(() => {
     const initialMessageStr = localStorage.getItem("popmint-initial-message")
-    
-    if (initialMessageStr && messages.length === 0) {
+
+    if (initialMessageStr && messages.length === 0 && hasHydratedRef.current) {
       try {
         const initialMessage = JSON.parse(initialMessageStr)
         // Add the initial message to the chat
@@ -52,10 +121,10 @@ export function ChatPanel() {
           content: initialMessage.content,
           imageUrls: initialMessage.imageUrls
         })
-        
+
         // Clear the stored message so it's not added again
         localStorage.removeItem("popmint-initial-message")
-        
+
         // If the initial message is a DALL-E command, trigger image generation
         const isImageRequest = initialMessage.content.trim().toLowerCase().startsWith('/image') || initialMessage.content.trim().toLowerCase().includes('generate image');
         if (isImageRequest) {
@@ -68,13 +137,13 @@ export function ChatPanel() {
               const objects = useCanvasStore.getState().objects;
               const imageExistsOnCanvas = (url: string) => {
                 const isProxied = url.startsWith('/api/proxy-image');
-                const originalUrl = isProxied 
+                const originalUrl = isProxied
                   ? decodeURIComponent(url.split('?url=')[1] || '')
                   : url;
                 return objects.some(obj => {
                   if (!obj.src) return false;
                   const objIsProxied = obj.src.startsWith('/api/proxy-image');
-                  const objOriginalUrl = objIsProxied 
+                  const objOriginalUrl = objIsProxied
                     ? decodeURIComponent(obj.src.split('?url=')[1] || '')
                     : obj.src;
                   return objOriginalUrl === originalUrl || obj.src === url;
@@ -93,10 +162,10 @@ export function ChatPanel() {
         } else {
           // Add an agent response after a short delay (for demo purposes)
           setTimeout(() => {
-            addMessage({ 
+            addMessage({
               role: "assistant",
-              type: "agent_progress", 
-              content: "Thinking about your request..." 
+              type: "agent_progress",
+              content: "Thinking about your request..."
             })
           }, 800)
         }
@@ -104,22 +173,32 @@ export function ChatPanel() {
         console.error("Error parsing initial message:", error)
       }
     }
-  }, [addMessage, messages.length])
+  }, [addMessage])
 
-  // Scroll to bottom when messages change
+  // Smart scroll to bottom when messages change
   useEffect(() => {
-    if (messagesEndRef.current) {
-      console.log('🔍 DEBUG - Scrolling to bottom of chat');
+    if (isNearBottom && messagesEndRef.current) {
+      console.log('🔍 DEBUG - Auto-scrolling to bottom of chat');
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
-  }, [messages]);
+  }, [messages, isNearBottom]);
 
-  // Check if there are any messages with images
-  const hasImageMessages = messages.some(message => 
-    message.imageUrls && message.imageUrls.length > 0
-  );
+  // Play sound effects for new messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant' && !lastMessage.isTemporary) {
+        // Play receive sound for assistant messages
+        import('@/lib/playSFX').then(({ playMessageReceive }) => {
+          playMessageReceive();
+        });
+      }
+    }
+  }, [messages.length]);
+
+
 
   return (
     <div className="flex flex-col bg-transparent py-2 px-2 h-full">
@@ -144,10 +223,29 @@ export function ChatPanel() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-hidden rounded-[10px]">
-        <ScrollArea className="h-full px-1 py-2 overflow-x-visible">
-          <div className="flex flex-col gap-3 w-full overflow-x-visible">
-            {messages.length === 0 ? (
+      <div className="flex-1 overflow-hidden rounded-[10px] relative">
+        <ScrollArea
+          className="h-full px-1 py-2 overflow-x-visible"
+          onScroll={handleScroll}
+          ref={scrollAreaRef}
+        >
+          <div className="flex flex-col w-full overflow-x-visible">
+            {/* Modern Toggle Banner */}
+            <ModernToggleBanner />
+
+            {/* Show error banner if chat loading failed */}
+            {loadError && (
+              <ChatErrorBanner
+                error={loadError}
+                onRetry={revalidate}
+                isRetrying={isValidating}
+              />
+            )}
+
+            {/* Show loading skeleton while loading initial data */}
+            {isLoading && messages.length === 0 ? (
+              <ChatLoadingSkeleton />
+            ) : messages.length === 0 ? (
               <div className="h-[calc(100%-80px)] flex flex-col items-center justify-center gap-4">
                 <div className="bg-gray-50 border border-gray-100 rounded-lg p-5 text-sm max-w-md space-y-4">
                   <div className="font-medium text-gray-900">Welcome to Popmint!</div>
@@ -172,7 +270,7 @@ export function ChatPanel() {
               </div>
             ) : (
               messages.map((message) => (
-                <MessageRenderer key={message.id} message={message} />
+                <ModernMessageRenderer key={message.id} message={message} />
               ))
             )}
 
@@ -186,6 +284,12 @@ export function ChatPanel() {
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
+
+        {/* Scroll to bottom button */}
+        <ScrollToBottom
+          isVisible={showScrollToBottom}
+          onClick={scrollToBottom}
+        />
       </div>
 
       {/* Input */}

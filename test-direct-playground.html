@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Direct Playground</title>
+</head>
+<body>
+    <h1>Test Direct Playground</h1>
+    <button onclick="setLocalStorageAndNavigate()">Set localStorage and Navigate</button>
+    <button onclick="checkLocalStorage()">Check localStorage</button>
+    <button onclick="clearLocalStorage()">Clear localStorage</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        function setLocalStorageAndNavigate() {
+            log('🧪 Setting localStorage and navigating...');
+            
+            // Clear existing localStorage
+            localStorage.clear();
+            log('✅ Cleared localStorage');
+            
+            // Set localStorage values exactly like homepage does
+            const testUrl = 'https://example.com/test-product-direct';
+            const initialMessage = {
+                type: 'text',
+                content: testUrl,
+                imageUrls: []
+            };
+            
+            localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessage));
+            localStorage.setItem("popmint-generate-ad", "true");
+            localStorage.setItem("popmint-product-url", testUrl);
+            localStorage.setItem("popmint-process-image", "true");
+            localStorage.setItem("popmint-prompt-to-process", testUrl);
+            
+            log('✅ Set localStorage values');
+            
+            // Generate a unique session ID
+            const sessionId = 'test-direct-' + Date.now();
+            log('✅ Generated session ID: ' + sessionId);
+            
+            // Navigate immediately
+            const playgroundUrl = 'http://localhost:3001/playground/' + sessionId;
+            log('🚀 Navigating to: ' + playgroundUrl);
+            
+            // Navigate in same window to preserve localStorage
+            window.location.href = playgroundUrl;
+        }
+        
+        function checkLocalStorage() {
+            log('📍 Current localStorage:');
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                log('  - ' + key + ': ' + value);
+            }
+        }
+        
+        function clearLocalStorage() {
+            localStorage.clear();
+            log('✅ Cleared localStorage');
+        }
+    </script>
+</body>
+</html>

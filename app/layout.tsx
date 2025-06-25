@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { StagewiseToolbar } from "@stagewise/toolbar-next"
 
 const inter = Inter({ subsets: ["latin"] })
-const sora = Sora({ 
+const sora = Sora({
   subsets: ["latin"],
   variable: '--font-sora',
 })
@@ -23,6 +23,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preload" href="/fonts/AdvercaseFont-Bold.otf" as="font" type="font/otf" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/AdvercaseFont-Bold.ttf" as="font" type="font/ttf" crossOrigin="anonymous" />
+      </head>
       <body className={`${inter.className} ${sora.variable}`}>
         {process.env.NODE_ENV === "development" && (
           <StagewiseToolbar config={{ plugins: [] }} />

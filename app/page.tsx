@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { generateImageFromPrompt } from '@/lib/generate-image'
 import { Textarea } from "@/components/ui/textarea"
 import { useAutoResizeTextarea } from "@/components/hooks/use-auto-resize-textarea"
+import { ProjectSection } from "@/components/home/project-section"
+import { useProjectStore } from "@/store/projectStore"
 
 // RegEx for detecting URLs in text
 const URL_REGEX = /(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi;
@@ -22,7 +24,7 @@ type ImageData = {
 
 const highlightUrls = (text: string): string => {
   if (!text) return "";
-  
+
   // First, escape all HTML special characters
   const escapeHtml = (unsafe: string) => {
     return unsafe
@@ -32,12 +34,12 @@ const highlightUrls = (text: string): string => {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   };
-  
+
   // Split the text into parts, some of which are URLs and some aren't
   const parts: { text: string; isUrl: boolean }[] = [];
   let lastIndex = 0;
   let match;
-  
+
   while ((match = URL_REGEX.exec(text)) !== null) {
     // Add text before the URL
     if (match.index > lastIndex) {
@@ -46,31 +48,31 @@ const highlightUrls = (text: string): string => {
         isUrl: false
       });
     }
-    
+
     // Process the URL
     let url = match[0];
     let cleanUrl = url;
-    
+
     // Remove common trailing punctuation that might not be part of the URL
     const trailingPunctuation = ['.', ',', '!', '?', ';', ':', ')', ']', '}'];
     while (cleanUrl.length > 0 && trailingPunctuation.includes(cleanUrl[cleanUrl.length - 1])) {
       cleanUrl = cleanUrl.slice(0, -1);
     }
-    
+
     // Ensure the URL has a protocol
     if (!cleanUrl.startsWith('http')) {
       cleanUrl = 'https://' + cleanUrl;
     }
-    
+
     // Add the URL part
     parts.push({
       text: `<span style="color: #0281F2;">${escapeHtml(url)}</span>`,
       isUrl: true
     });
-    
+
     lastIndex = match.index + url.length;
   }
-  
+
   // Add any remaining text after the last URL
   if (lastIndex < text.length) {
     parts.push({
@@ -78,13 +80,14 @@ const highlightUrls = (text: string): string => {
       isUrl: false
     });
   }
-  
+
   // Combine all parts
   return parts.map(part => part.text).join('');
 };
 
 export default function Home() {
   const router = useRouter()
+  const { createProjectFromPrompt, linkJobToProject } = useProjectStore()
   const [inputValue, setInputValue] = useState("")
   const [hasValidUrl, setHasValidUrl] = useState(false)
   const [uploadedImages, setUploadedImages] = useState<ImageData[]>([])
@@ -154,7 +157,7 @@ export default function Home() {
               if (endNode === null && charCount + nodeTextLength >= currentSelection.end) {
                 endNode = node;
                 endIdxInNode = currentSelection.end - charCount;
-                break; 
+                break;
               }
               charCount += nodeTextLength;
             }
@@ -167,7 +170,7 @@ export default function Home() {
 
               newRange.setStart(startNode, startIdxInNode);
               newRange.setEnd(endNode, endIdxInNode);
-              
+
               selection.removeAllRanges();
               selection.addRange(newRange);
             } else if (contentEditableRef.current.childNodes.length > 0) {
@@ -280,56 +283,72 @@ export default function Home() {
     }
 
     setIsSubmitting(true);
-    
+
     try {
-      // Generate a session ID for the playground
-      const sessionId = Math.random().toString(36).substring(2, 9);
-      
-      // Generate a project name based on input
-      let projectName = "Untitled Project";
-      if (inputValue.trim()) {
-        const words = inputValue.trim().split(/\s+/);
-        const firstThreeWords = words.slice(0, 3).join(" ");
-        if (firstThreeWords) {
-          const uniqueId = Math.random().toString(36).substring(2, 7);
-          projectName = `${firstThreeWords} ${uniqueId}`;
-        }
+      console.log("[HomePage] Starting project creation with persistence...");
+
+      // Create the full prompt for the project
+      const fullPrompt = inputValue.trim();
+
+      // Create project using the new persistence system
+      const projectId = await createProjectFromPrompt(fullPrompt);
+
+      if (!projectId) {
+        throw new Error('Failed to create project');
       }
-      
+
+      console.log("[HomePage] Project created successfully:", projectId);
+
       // Get image URLs from uploaded images
       const userUploadedImageUrls = uploadedImages.map(img => img.previewUrl);
-      
+
       // Create initial message object for the chat panel
       const initialMessagePayload = {
         type: "userInput",
         content: inputValue.trim(),
-        imageUrls: userUploadedImageUrls 
+        imageUrls: userUploadedImageUrls
       };
-      
-      // First, clear any legacy items to prevent conflicts
-      localStorage.removeItem("popmint-prompt");
-      localStorage.removeItem("popmint-images");
-      localStorage.removeItem("popmint-process-image");
-      
+
       // Check if input contains a product URL - if it does, mark it for ad generation
-      const containsUrl = URL_REGEX.test(inputValue);
-      
-      // Store all required data in localStorage
-      localStorage.setItem("popmint-project-name", projectName);
+      const urlMatch = inputValue.match(/(https?:\/\/|www\.)[^\s\n\r]+[^\s\n\r\.\,\!\?\;\:\)\]\}\'\"]/gi);
+      const containsUrl = Boolean(urlMatch && urlMatch.length > 0);
+      console.log("[HomePage] URL detected:", containsUrl, urlMatch);
+
+      // Store data in localStorage for the playground to pick up
+      // This maintains compatibility with existing playground logic
       localStorage.setItem("popmint-initial-message", JSON.stringify(initialMessagePayload));
-      
+      console.log("[HomePage] Set initial message in localStorage");
+
       if (containsUrl) {
-        // Set special flag for ad generation
-        console.log("[HomePage] Detected ad generation request");
-        localStorage.setItem("popmint-generate-ad", "true");
+        // We already have the URL match from above, use it directly
+        if (urlMatch && urlMatch.length > 0) {
+          let productUrl = urlMatch[0];
+          if (!productUrl.startsWith('http')) {
+            productUrl = 'https://' + productUrl;
+          }
+
+          // Set special flag for ad generation - use string literals to ensure proper values
+          console.log("[HomePage] Detected ad generation request for URL:", productUrl);
+
+          // IMPORTANT: Set these values directly without any conditional logic
+          localStorage.setItem("popmint-generate-ad", "true");
+          localStorage.setItem("popmint-product-url", productUrl);
+
+          // Add the process-image flag to match the debug route implementation
+          localStorage.setItem("popmint-process-image", "true");
+          localStorage.setItem("popmint-prompt-to-process", inputValue.trim());
+
+          console.log("[HomePage] Set ad generation flags in localStorage");
+        }
       } else if (inputValue.trim()) {
         // For any other input, don't do special processing
         console.log("[HomePage] Regular chat input detected");
       }
-      
-      // Navigate immediately - don't wait for any processes
-      router.push(`/playground/${sessionId}`);
-      
+
+      // Navigate to the playground using the project ID
+      console.log("[HomePage] Navigating to playground with project:", projectId);
+      router.push(`/playground/${projectId}`);
+
     } catch (error) {
       console.error("[HomePage] Error in handleSubmit:", error);
       setIsSubmitting(false);
@@ -359,7 +378,7 @@ export default function Home() {
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && currentElement.contains(selection.anchorNode)) {
       const range = selection.getRangeAt(0);
-      
+
       let selectionStart = 0;
       let selectionEnd = 0;
 
@@ -368,7 +387,7 @@ export default function Home() {
       preSelectionRangeStart.selectNodeContents(currentElement);
       if(currentElement.contains(range.startContainer)){
           preSelectionRangeStart.setEnd(range.startContainer, range.startOffset);
-          selectionStart = preSelectionRangeStart.toString().length;    
+          selectionStart = preSelectionRangeStart.toString().length;
       } else { // Fallback if range.startContainer is not a child of currentElement
           selectionStart = newText.length;
       }
@@ -401,7 +420,7 @@ export default function Home() {
 
     const range = selection.getRangeAt(0);
     range.deleteContents();
-    
+
     const textNode = document.createTextNode(pastedText);
     range.insertNode(textNode);
 
@@ -412,7 +431,7 @@ export default function Home() {
 
     const currentElement = e.currentTarget;
     const newFullText = currentElement.textContent || "";
-    
+
     // Calculate new selection based on pasted text length
     let newCursorPos = 0;
     const tempRangeForCursor = document.createRange();
@@ -429,27 +448,40 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-gradient-to-tr from-sky-300 via-purple-200 via-70% to-yellow-100 relative overflow-hidden">
-      
-      {/* Noise texture overlay */}
-      <div className="pointer-events-none absolute inset-0 z-100 bg-[url('https://www.transparenttextures.com/patterns/3px-tile.png')] opacity-50 mix-blend-soft-light"></div>
-      
-      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col z-100 min-h-[calc(100vh-80px)]">
+    <div className="min-h-screen w-full flex flex-col relative overflow-hidden">
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline // Important for iOS Safari
+        className="fixed inset-0 w-full h-full object-fill -z-10"
+      >
+        <source src="/bg/bg-sky.webm" type="video/webm" />
+        {/* You can add other video formats here for broader compatibility if needed */}
+        Your browser does not support the video tag.
+      </video>
+      {/* Fixed gradient background - This container will now be over the video */}
+      <div className="container mx-auto px-4 pt-4 pb-2 flex-1 flex flex-col z-0 min-h-[calc(80vh-80px)]">
         {/* Header - Sticky */}
-        <header className="flex justify-between items-center sticky top-0 z-10">
-          <div className="flex items-center gap-2">
+        <header className="flex justify-between items-center sticky z-10">
+          <div className="flex items-center gap-1">
             <img src="/popmint_logo.svg" alt="Popmint Logo" className="w-5 h-5" />
             <span className="text-xl font-medium">Popmint</span>
           </div>
-          <Button variant="outline" className="bg-black text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-black/90">
-            Tutorial
+          <Button variant="outline" className="transition-all duration-300 bg-gradient-to-br from-slate-900 to-slate-700 ring-1 text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-black/90 hover:ring-3 hover:text-white hover:ring-blue-200">
+            Log in
           </Button>
         </header>
 
         {/* Main Content */}
-        <main className="flex flex-col items-center justify-center flex-1 w-full max-w-3xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold text-center">What are we designing today?</h1>
-          <p className="mt-4 text-center text-base">Concept to ads, with your personal marketing team</p>
+        <main className="flex flex-col mt-40 items-center flex-1 w-full max-w-3xl mx-auto">
+          <h1
+            className="text-4xl md:text-5xl font-bold text-center font-advercase-bold "
+            style={{ fontFamily: 'AdvercaseBold, sans-serif', textShadow: '0 0 10px rgba(0,0,0,0.1)' }}
+          >
+            What are we designing today?
+          </h1>
+          <p className="mt-4 text-center text-base text-shadow-sm">Concept to ads, with your personal marketing team</p>
 
           {/* Input Box - Interactive version with image preview and drag-drop */}
           <div
@@ -460,8 +492,8 @@ export default function Home() {
             onDrop={handleDrop}
           >
             <div
-              className={`w-full max-w-xl px-3 py-2 bg-white rounded-[15px] outline-offset-[-1px] 
-              ${isDragging ? "outline-blue-400 bg-blue-50" : "outline-gray-200"} 
+              className={`w-full max-w-xl px-3 py-2 bg-slate-50/75 border border-slate-200/100 backdrop-blur-md rounded-[15px] outline-offset-[-1px] shadow-[0_0_10px_rgba(0,0,0,0.1)]
+              ${isDragging ? "outline-blue-400 bg-blue-50" : "outline-gray-200"}
               inline-flex flex-col justify-end items-end gap-2 overflow-hidden transition-colors`}
             >
               {/* Image Previews - Above text input */}
@@ -489,12 +521,12 @@ export default function Home() {
               )}
 
               {/* Text input area */}
-              <div className="relative w-full">
+              <div className=" transition-all duration-300 relative w-full">
                 {/* Main content display layer */}
-                <div 
-                  ref={scrollableContainerRef} 
+                <div
+                  ref={scrollableContainerRef}
                   className="relative"
-                  style={{ minHeight: '60px', overflowY: 'auto' }} 
+                  style={{ minHeight: '60px', overflowY: 'auto' }}
                 >
                   {/* Actual contentEditable div for user input */}
                   <div
@@ -506,7 +538,7 @@ export default function Home() {
                     suppressContentEditableWarning={true}
                     className={`w-full resize-none text-base font-normal leading-normal bg-transparent outline-none p-3 absolute inset-0 text-gray-900`}
                     style={{
-                      whiteSpace: 'pre-wrap', 
+                      whiteSpace: 'pre-wrap',
                       overflowWrap: 'break-word',
                       lineHeight: '1.5',
                       overflowY: 'hidden', // Important for scrollHeight calculation of parent
@@ -523,7 +555,7 @@ export default function Home() {
                     autoCapitalize="sentences"
                   />
                   {inputValue === "" && (
-                    <div 
+                    <div
                       className="absolute inset-0 p-3 text-gray-500 pointer-events-none select-none"
                       style={{ lineHeight: '1.5' }} // Match div's line height
                       aria-hidden="true"
@@ -571,7 +603,7 @@ export default function Home() {
                   className={`self-stretch min-w-10 p-2 rounded-[100px] flex justify-center items-center gap-1 overflow-hidden transition-colors ${
                     inputValue.trim() || uploadedImages.length > 0
                       ? "bg-blue-500 hover:bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-slate-50 text-gray-400 cursor-not-allowed"
                   }`}
                   disabled={!inputValue.trim() && uploadedImages.length === 0 || isSubmitting}
                   aria-label="Send message"
@@ -585,10 +617,12 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-
         </main>
       </div>
+
+      {/* Project Section - Outside container to stretch full width */}
+      <div className="mb-4 px-4">      <ProjectSection/></div>
+
     </div>
   )
 }
